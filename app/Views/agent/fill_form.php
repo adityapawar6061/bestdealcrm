@@ -141,8 +141,8 @@ $sortedSections = array_merge($sortedSections, $otherSections);
                     $fieldReadOnly = true;
                 } elseif ($isAdminSection) {
                     $fieldReadOnly = true;
-                } elseif ($isEditable === false && !$isAdminSection) {
-                    // Not in an editable stage and not admin section
+                } elseif (strpos($fn, 'agent_name') !== false || strpos($fl, 'agent name') !== false) {
+                    $fieldReadOnly = true;
                 }
 
                 // Auto-fill agent name

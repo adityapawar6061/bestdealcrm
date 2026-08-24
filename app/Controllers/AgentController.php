@@ -117,15 +117,42 @@ class AgentController extends BaseController
             }
         }
 
-        // Auto-fill agent_name fields with logged-in user's name
+        // Pre-fill fields from lead data and auto-fill agent name
+        // Map form field_name to lead column name for auto-fill
+        $leadFieldMap = [
+            'customer_name' => 'customer_name',
+            'mobile_number' => 'mobile_number',
+            'location' => 'location',
+            'state' => 'state',
+            'existing_la' => 'existing_la',
+            'salary' => 'salary',
+            'actual_salary' => 'actual_salary',
+            'dtmf_input' => 'dtmf_input',
+            'response_date' => 'response_date',
+            'data_type' => 'data_type',
+            'bank_name' => 'bank_name',
+            'pan_number' => 'pan_number',
+            'current_status' => 'current_status',
+            'update_status' => 'update_status',
+            'remark' => 'remark',
+        ];
+
         foreach ($form['sections'] as &$section) {
             foreach ($section['fields'] as &$field) {
-                $fn = strtolower($field['field_name'] ?? '');
-                $fl = strtolower($field['label'] ?? '');
-                if (strpos($fn, 'agent_name') !== false || strpos($fl, 'agent name') !== false || strpos($fl, 'agent_name') !== false) {
-                    if (empty($existingValues[$field['id']])) {
-                        $existingValues[$field['id']] = $user['name'];
+                $fn = strtolower(trim($field['field_name'] ?? ''));
+                $fl = strtolower(trim($field['label'] ?? ''));
+
+                // Pre-fill from lead data if field_name matches a lead column
+                if (empty($existingValues[$field['id']]) && isset($leadFieldMap[$fn])) {
+                    $leadVal = $lead[$leadFieldMap[$fn]] ?? '';
+                    if ($leadVal !== null && $leadVal !== '') {
+                        $existingValues[$field['id']] = $leadVal;
                     }
+                }
+
+                // Auto-fill agent name fields
+                if (empty($existingValues[$field['id']]) && (strpos($fn, 'agent_name') !== false || strpos($fl, 'agent name') !== false || strpos($fl, 'agent_name') !== false)) {
+                    $existingValues[$field['id']] = $user['name'];
                 }
             }
         }
