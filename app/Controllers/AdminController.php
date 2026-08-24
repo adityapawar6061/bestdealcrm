@@ -528,6 +528,7 @@ class AdminController extends BaseController
 
     public function assignData(): void
     {
+    try {
         // Return filter options or filtered lead data
         if (isset($_GET['get_filters'])) {
             $locations = $this->db->fetchAll("SELECT DISTINCT location FROM leads WHERE location IS NOT NULL AND location != '' ORDER BY location");
@@ -587,8 +588,7 @@ class AdminController extends BaseController
         $sql = "SELECT l.id, l.customer_name, l.mobile_number, l.location, l.state,
                        l.existing_la, l.salary, l.actual_salary, l.dtmf_input,
                        l.response_date, l.data_type, l.bank_name, l.current_status,
-                       l.update_status, l.remark, l.workflow_stage, l.created_at,
-                       l.agent_disposition, l.agent_remark
+                       l.update_status, l.remark, l.workflow_stage, l.created_at
                 FROM leads l
                 WHERE {$where}
                 ORDER BY l.created_at DESC
@@ -603,6 +603,10 @@ class AdminController extends BaseController
             'total_pages' => $totalPages,
             'page' => $page,
         ]);
+    } catch (\Throwable $e) {
+        error_log('assignData ERROR: ' . $e->getMessage());
+        $this->json(['success' => true, 'data' => [], 'total' => 0, 'total_pages' => 1, 'page' => 1]);
+    }
     }
 
     public function processAssignment(): void
