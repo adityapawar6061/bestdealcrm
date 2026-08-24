@@ -30,17 +30,31 @@ spl_autoload_register(function ($class) {
     if (file_exists($filePath)) { require_once $filePath; }
 });
 
+// Load config
 if (file_exists(ROOT_PATH . '/config/config.php')) { require_once ROOT_PATH . '/config/config.php'; }
+
+// Load helpers
 if (file_exists(ROOT_PATH . '/app/Helpers/Session.php')) { require_once ROOT_PATH . '/app/Helpers/Session.php'; }
 if (file_exists(ROOT_PATH . '/app/Helpers/Helpers.php')) { require_once ROOT_PATH . '/app/Helpers/Helpers.php'; }
+
+// Pre-load BaseController BEFORE Router runs
+// This ensures the class is defined regardless of autoloader issues
+$bcFile = ROOT_PATH . '/app/Controllers/BaseController.php';
+if (file_exists($bcFile)) {
+    require_once $bcFile;
+}
+
+// Load routes
 if (file_exists(ROOT_PATH . '/routes/web.php')) { require_once ROOT_PATH . '/routes/web.php'; }
 
+// Strip base path
 $requestUri = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
 if (strpos($requestUri, '/bestdealcrm') === 0) {
     $requestUri = substr($requestUri, strlen('/bestdealcrm'));
 }
 $_SERVER['REQUEST_URI'] = $requestUri ?: '/';
 
+// Dispatch
 if (isset($router) && $router instanceof Router) {
     try {
         $router->dispatch();
