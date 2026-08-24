@@ -1,13 +1,15 @@
 RewriteEngine On
 RewriteBase /bestdealcrm/
 
-# Allow direct access to database installer and public assets
-RewriteCond %{REQUEST_URI} ^/bestdealcrm/database/ [OR]
-RewriteCond %{REQUEST_URI} ^/bestdealcrm/public/
+# Allow direct access to root-level PHP files (no auth required)
+RewriteCond %{REQUEST_URI} ^/bestdealcrm/(install|reset_password|git_fix)\.php$
 RewriteRule ^ - [L]
 
-# Redirect everything else to public/index.php
+# Allow direct access to files that exist
+RewriteCond %{REQUEST_FILENAME} -f
+RewriteRule ^ - [L]
+
+# Route everything else through public/index.php
 RewriteCond %{REQUEST_FILENAME} !-f
 RewriteCond %{REQUEST_FILENAME} !-d
-RewriteRule ^$ public/index.php [L]
-RewriteRule ((?!public/|database/).*) public/$1 [L,NC]
+RewriteRule ^(.*)$ public/index.php [QSA,L]
