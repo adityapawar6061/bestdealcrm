@@ -1,64 +1,121 @@
+#!/usr/bin/env php
 <?php
 /**
- * Minimal PHP test - access at /bestdealcrm/ping.php
- * If this returns "pong", PHP works. If 500, server PHP is broken.
+ * Diagnostic tool - access at: /bestdealcrm/ping.php
  */
+
 error_reporting(E_ALL);
 ini_set('display_errors', '1');
 
-echo "pong - PHP " . phpversion() . " OK";
+echo "<h2>BestDeal CRM - Server Diagnostic</h2>";
 
-// Test autoloader
-$rootPath = dirname(__DIR__);
-echo "<br>ROOT_PATH would be: {$rootPath}";
+// Figure out where we actually are
+$thisDir = __DIR__;
+echo "<p><strong>This file location:</strong> {$thisDir}</p>";
+echo "<p><strong>dirname(__DIR__):</strong> " . dirname(__DIR__) . "</p>";
+echo "<p><strong>PHP Version:</strong> " . phpversion() . "</p>";
 
-// Test if index.php exists and what it contains
+// Find the real project root by looking for .env or config/config.php
+$candidates = [dirname(__DIR__), __DIR__, dirname(dirname(__DIR__))];
+$rootPath = null;
+foreach ($candidates as $dir) {
+    if (file_exists($dir . '/.env') || file_exists($dir . '/config/config.php') || file_exists($dir . '/config/database.php')) {
+        $rootPath = $dir;
+        break;
+    }
+}
+
+if ($rootPath) {
+    echo "<p style='color:green'><strong>Project root found:</strong> {$rootPath}</p>";
+} else {
+    echo "<p style='color:red'><strong>Project root NOT FOUND!</strong> Searched:</p>";
+    echo "<ul>";
+    foreach ($candidates as $dir) {
+        echo "<li>{$dir}</li>";
+    }
+    echo "</ul>";
+    
+    // List what IS in parent dir
+    echo "<p><strong>Files in " . dirname(__DIR__) . ":</strong></p><ul>";
+    $items = scandir(dirname(__DIR__));
+    foreach ($items as $item) {
+        if ($item === '.' || $item === '..') continue;
+        $fullPath = dirname(__DIR__) . '/' . $item;
+        $type = is_dir($fullPath) ? 'DIR' : 'FILE (' . filesize($fullPath) . ' bytes)';
+        echo "<li>{$item} [{$type}]</li>";
+    }
+    echo "</ul>";
+    
+    echo "<p><strong>Files in " . dirname(dirname(__DIR__)) . ":</strong></p><ul>";
+    $items = scandir(dirname(dirname(__DIR__)));
+    foreach ($items as $item) {
+        if ($item === '.' || $item === '..') continue;
+        $fullPath = dirname(dirname(__DIR__)) . '/' . $item;
+        $type = is_dir($fullPath) ? 'DIR' : 'FILE (' . filesize($fullPath) . ' bytes)';
+        echo "<li>{$item} [{$type}]</li>";
+    }
+    echo "</ul>";
+    exit;
+}
+
+// Check key files
+echo "<h3>File Checks</h3><ul>";
+$files = ['.env', 'config/config.php', 'config/database.php', 'config/Router.php', 
+          'public/index.php', 'app/Helpers/Session.php', 'routes/web.php'];
+foreach ($files as $f) {
+    $full = $rootPath . '/' . $f;
+    if (file_exists($full)) {
+        echo "<li style='color:green'>✅ {$f} (" . filesize($full) . " bytes)</li>";
+    } else {
+        echo "<li style='color:red'>❌ {$f} NOT FOUND</li>";
+    }
+}
+echo "</ul>";
+
+// Check index.php content
 $indexFile = $rootPath . '/public/index.php';
 if (file_exists($indexFile)) {
     $content = file_get_contents($indexFile);
-    $hasChr = strpos($content, 'chr(92)') !== false;
-    $hasOldAutoloader = strpos($content, "str_replace('\\\\\\\\'") !== false;
-    echo "<br>index.php exists: " . filesize($indexFile) . " bytes";
-    echo "<br>Has chr(92) fix: " . ($hasChr ? 'YES' : 'NO');
-    echo "<br>Has old broken autoloader: " . ($hasOldAutoloader ? 'YES (BROKEN)' : 'NO');
+    echo "<h3>public/index.php Analysis</h3>";
+    echo "<ul>";
+    echo "<li>chr(92) autoloader: " . (strpos($content, 'chr(92)') !== false ? '✅ YES' : '❌ NO (uses broken backslash escaping)') . "</li>";
+    echo "<li>Polyfills: " . (strpos($content, 'function_exists') !== false ? '✅ YES' : '❌ NO') . "</li>";
+    echo "<li>Error logging: " . (strpos($content, 'error_log') !== false ? '✅ YES' : '❌ NO') . "</li>";
+    echo "</ul>";
     
-    // Show line 50-60 of index.php
+    // Show lines 48-68
     $lines = explode("\n", $content);
-    echo "<br><br><strong>Lines 50-65 of public/index.php:</strong><pre>";
-    for ($i = 49; $i < min(65, count($lines)); $i++) {
+    echo "<h3>Lines 48-68:</h3><pre style='background:#f0f0f0;padding:10px;overflow-x:auto'>";
+    for ($i = 47; $i < min(68, count($lines)); $i++) {
         echo ($i+1) . ": " . htmlspecialchars($lines[$i]) . "\n";
     }
     echo "</pre>";
-} else {
-    echo "<br>index.php NOT FOUND at {$indexFile}";
 }
 
-// Test DB
-echo "<br><br><strong>Testing Database:</strong><br>";
-try {
-    $envFile = $rootPath . '/.env';
-    if (file_exists($envFile)) {
-        $lines = file($envFile, FILE_IGNORE_NEW_LINES);
-        $env = [];
-        foreach ($lines as $line) {
-            if (strpos(trim($line), '#') === 0) continue;
-            if (strpos($line, '=') !== false) {
-                [$key, $value] = explode('=', $line, 2);
-                $env[trim($key)] = trim(trim($value), '"\'');
-            }
+// Test database
+echo "<h3>Database Test</h3>";
+if (file_exists($rootPath . '/.env')) {
+    $envLines = file($rootPath . '/.env', FILE_IGNORE_NEW_LINES);
+    $env = [];
+    foreach ($envLines as $line) {
+        if (strpos(trim($line), '#') === 0 || empty(trim($line))) continue;
+        if (strpos($line, '=') !== false) {
+            [$k, $v] = explode('=', $line, 2);
+            $env[trim($k)] = trim(trim($v), '"\'');
         }
-        echo "DB_HOST: " . ($env['DB_HOST'] ?? 'NOT SET') . "<br>";
-        
+    }
+    
+    try {
         $dsn = "mysql:host={$env['DB_HOST']};dbname={$env['DB_NAME']};charset=utf8mb4";
         $pdo = new PDO($dsn, $env['DB_USER'], $env['DB_PASS'], [
             PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
         ]);
-        echo "✅ Database connected!<br>";
+        echo "<p style='color:green'>✅ Database connected!</p>";
         $admin = $pdo->query("SELECT id,username,status FROM users WHERE username='admin'")->fetch();
-        echo $admin ? "✅ Admin found: " . json_encode($admin) : "❌ No admin user";
-    } else {
-        echo "❌ .env not found";
+        echo $admin ? "<p>✅ Admin user: " . json_encode($admin) . "</p>" : "<p>❌ No admin user</p>";
+    } catch (PDOException $e) {
+        echo "<p style='color:red'>❌ DB Error: " . htmlspecialchars($e->getMessage()) . "</p>";
     }
-} catch (PDOException $e) {
-    echo "❌ DB Error: " . $e->getMessage();
+} else {
+    echo "<p>❌ .env not found</p>";
 }

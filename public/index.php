@@ -26,7 +26,13 @@ if (!function_exists('str_ends_with')) {
     }
 }
 
+// __DIR__ is bestdealcrm/public, so dirname gets bestdealcrm/
+// But if server resolves paths differently, we detect the real repo root
 $rootPath = dirname(__DIR__);
+// Verify: if .env is not at this rootPath, try going up one more level
+if (!file_exists($rootPath . '/.env') && !file_exists($rootPath . '/config/config.php')) {
+    $rootPath = dirname($rootPath);
+}
 define('ROOT_PATH', $rootPath);
 
 // Shutdown error handler to capture fatal errors
