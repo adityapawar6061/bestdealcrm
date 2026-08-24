@@ -52,6 +52,7 @@ $router->middleware(['AuthMiddleware'], function ($router) {
             
             // Lead Assignment (must be before /leads/{id})
             $router->get('/leads/assign', 'AdminController', 'assignLeads');
+            $router->get('/leads/assign/data', 'AdminController', 'assignData');
             $router->post('/leads/assign', 'AdminController', 'processAssignment');
             
             // Lead Detail (wildcard last)

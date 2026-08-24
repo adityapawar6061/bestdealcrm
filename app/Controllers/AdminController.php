@@ -426,10 +426,95 @@ class AdminController extends BaseController
 
     public function assignLeads(): void
     {
+        // Get all active users (agents + login agents + team leaders)
+        $agents = $this->db->fetchAll(
+            "SELECT u.id, u.name, r.display_name as role_name 
+             FROM users u 
+             JOIN roles r ON u.role_id = r.id 
+             WHERE u.status = 'active' AND r.name IN ('agent', 'login_agent', 'team_leader') 
+             ORDER BY r.display_name, u.name"
+        );
         $this->view('admin/assign_leads', [
             'title'  => 'Assign Leads',
-            'agents' => $this->userModel->getAgents(),
-            'leads'  => $this->leadModel->getAll(['workflow_stage' => 'LEAD_UPLOADED'], 1, 100),
+            'agents' => $agents,
+        ]);
+    }
+
+    public function assignData(): void
+    {
+        // Return filter options or filtered lead data
+        if (isset($_GET['get_filters'])) {
+            $locations = $this->db->fetchAll("SELECT DISTINCT location FROM leads WHERE location IS NOT NULL AND location != '' ORDER BY location");
+            $states = $this->db->fetchAll("SELECT DISTINCT state FROM leads WHERE state IS NOT NULL AND state != '' ORDER BY state");
+            $dataTypes = $this->db->fetchAll("SELECT DISTINCT data_type FROM leads WHERE data_type IS NOT NULL AND data_type != '' ORDER BY data_type");
+            $bankNames = $this->db->fetchAll("SELECT DISTINCT bank_name FROM leads WHERE bank_name IS NOT NULL AND bank_name != '' ORDER BY bank_name");
+
+            $this->json([
+                'success' => true,
+                'locations' => array_column($locations, 'location'),
+                'states' => array_column($states, 'state'),
+                'data_types' => array_column($dataTypes, 'data_type'),
+                'bank_names' => array_column($bankNames, 'bank_name'),
+            ]);
+            return;
+        }
+
+        // Filtered leads data
+        $page = max(1, (int)($_GET['page'] ?? 1));
+        $perPage = min(500, max(1, (int)($_GET['per_page'] ?? 50)));
+        $where = '1=1';
+        $params = [];
+
+        if (!empty($_GET['location'])) {
+            $where .= ' AND l.location = ?';
+            $params[] = $_GET['location'];
+        }
+        if (!empty($_GET['state'])) {
+            $where .= ' AND l.state = ?';
+            $params[] = $_GET['state'];
+        }
+        if (!empty($_GET['response_date'])) {
+            $where .= ' AND l.response_date = ?';
+            $params[] = $_GET['response_date'];
+        }
+        if (!empty($_GET['data_type'])) {
+            $where .= ' AND l.data_type = ?';
+            $params[] = $_GET['data_type'];
+        }
+        if (!empty($_GET['bank_name'])) {
+            $where .= ' AND l.bank_name = ?';
+            $params[] = $_GET['bank_name'];
+        }
+        if (!empty($_GET['search'])) {
+            $s = '%' . $_GET['search'] . '%';
+            $where .= ' AND (l.customer_name LIKE ? OR l.mobile_number LIKE ? OR l.id = ?)';
+            $params[] = $s;
+            $params[] = $s;
+            $params[] = (int)$_GET['search'];
+        }
+
+        $total = $this->db->count('leads l', $where, $params);
+        $totalPages = max(1, ceil($total / $perPage));
+        $page = min($page, $totalPages);
+        $offset = ($page - 1) * $perPage;
+
+        $sql = "SELECT l.id, l.customer_name, l.mobile_number, l.location, l.state,
+                       l.existing_la, l.salary, l.actual_salary, l.dtmf_input,
+                       l.response_date, l.data_type, l.bank_name, l.current_status,
+                       l.update_status, l.remark, l.workflow_stage, l.created_at
+                FROM leads l
+                WHERE {$where}
+                ORDER BY l.created_at DESC
+                LIMIT {$perPage} OFFSET {$offset}";
+
+        $data = $this->db->fetchAll($sql, $params);
+
+        $this->json([
+            'success' => true,
+            'data' => $data,
+            'total' => $total,
+            'total_pages' => $totalPages,
+            'page' => $page,
         ]);
     }
 
@@ -444,20 +529,46 @@ class AdminController extends BaseController
         $assignedTo = (int)($_POST['assigned_to'] ?? 0);
 
         if (empty($leadIds) || !$assignedTo) {
-            $this->json(['error' => 'Please select leads and an agent.'], 400);
+            $this->json(['error' => 'Please select leads and a user to assign to.'], 400);
+            return;
+        }
+
+        // Verify target user exists and is active
+        $targetUser = $this->db->fetchOne("SELECT id, name FROM users WHERE id = ? AND status = 'active'", [$assignedTo]);
+        if (!$targetUser) {
+            $this->json(['error' => 'Selected user not found or inactive.'], 400);
             return;
         }
 
         $count = 0;
-        foreach ($leadIds as $leadId) {
-            $this->leadModel->assign((int)$leadId, $assignedTo);
-            $count++;
+        $errors = [];
+        $this->db->beginTransaction();
+        try {
+            foreach ($leadIds as $leadId) {
+                $leadId = (int)$leadId;
+                if ($leadId <= 0) continue;
+                try {
+                    $this->leadModel->assign($leadId, $assignedTo);
+                    $count++;
+                } catch (\Exception $e) {
+                    $errors[] = "Lead #{$leadId}: " . $e->getMessage();
+                }
+            }
+            $this->db->commit();
+        } catch (\Exception $e) {
+            $this->db->rollback();
+            $this->json(['error' => 'Assignment failed: ' . $e->getMessage()], 500);
+            return;
         }
 
         logActivity(currentUser()['id'], 'leads_assigned', 'lead', null, null, 
-            json_encode(['count' => $count, 'assigned_to' => $assignedTo]));
+            json_encode(['count' => $count, 'assigned_to' => $assignedTo, 'target' => $targetUser['name']]));
 
-        $this->json(['success' => true, 'message' => "{$count} leads assigned successfully."]);
+        $msg = "{$count} leads assigned to {$targetUser['name']}.";
+        if (!empty($errors)) {
+            $msg .= ' ' . count($errors) . ' leads had errors.';
+        }
+        $this->json(['success' => true, 'message' => $msg, 'errors' => $errors]);
     }
 
     // ========== ADMIN REVIEW 1 ==========

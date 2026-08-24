@@ -252,6 +252,7 @@
     <script>
         // CSRF token for AJAX
         const CSRF_TOKEN = '<?= csrfToken() ?>';
+        const BASE_URL = '<?= defined('BASE_URL') ? BASE_URL : '/bestdealcrm' ?>';
         
         // Show toast notification
         function showToast(message, type) {
