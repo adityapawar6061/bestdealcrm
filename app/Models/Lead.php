@@ -211,7 +211,8 @@ class Lead
 
     public function checkDuplicateMobile(string $mobile): ?array
     {
-        return $this->db->fetchOne("SELECT id, customer_name FROM leads WHERE mobile_number = ?", [$mobile]);
+        $result = $this->db->fetchOne("SELECT id, customer_name FROM leads WHERE mobile_number = ?", [$mobile]);
+        return $result ?: null;
     }
 
     public function getUnassignedCount(): int

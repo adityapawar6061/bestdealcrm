@@ -72,7 +72,8 @@ class Database
      */
     public function fetchOne(string $sql, array $params = [])
     {
-        return $this->query($sql, $params)->fetch();
+        $result = $this->query($sql, $params)->fetch();
+        return $result !== false ? $result : null;
     }
 
     /**
