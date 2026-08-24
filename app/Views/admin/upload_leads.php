@@ -8,7 +8,7 @@
 <!-- Step 1: File Upload -->
 <div id="step1" class="table-container">
     <h6 class="fw-bold mb-3">Step 1: Select File</h6>
-    <p class="text-muted small">Supported formats: CSV, XLSX</p>
+    <p class="text-muted small">Supported formats: CSV, XLSX. Maximum 10MB.</p>
     
     <form id="uploadForm" enctype="multipart/form-data">
         <?= csrfField() ?>
@@ -30,15 +30,14 @@
 <!-- Step 2: Column Mapping -->
 <div id="step2" class="table-container mt-4 d-none">
     <h6 class="fw-bold mb-3">Step 2: Map Columns</h6>
-    <p class="text-muted small">Map CSV columns to lead database fields. Unmapped columns will be ignored.</p>
+    <p class="text-muted small">For each CSV column, select the database field it maps to. Leave as "-- Skip --" to ignore.</p>
     
     <form id="mappingForm">
         <?= csrfField() ?>
         <input type="hidden" name="upload_id" id="uploadId">
         
-        <div class="row g-2 mb-3" id="mappingFields">
-            <!-- Mapping fields will be populated by JS -->
-        </div>
+        <!-- Mapping: one row per CSV column -->
+        <div id="mappingFields" class="mb-3"></div>
         
         <div class="d-flex gap-2">
             <button type="button" class="btn btn-primary" onclick="submitMapping()">
@@ -67,7 +66,40 @@
 </div>
 
 <script>
-let uploadColumns = [];
+// Database field names that leads can be mapped to
+const DB_FIELDS = {
+    'customer_name': 'Customer Name',
+    'mobile_number': 'Mobile Number',
+    'location': 'Location',
+    'state': 'State',
+    'existing_la': 'Existing LA',
+    'salary': 'Salary',
+    'actual_salary': 'Actual Salary',
+    'dtmf_input': 'DTMF Input',
+    'response_date': 'Response Date',
+    'data_type': 'Data Type',
+    'bank_name': 'Bank Name',
+    'current_status': 'Current Status',
+    'update_status': 'Update Status',
+    'remark': 'Remark',
+    'pan_number': 'PAN Number'
+};
+
+// Auto-map CSV columns to DB fields by fuzzy matching
+function autoMapColumns(csvCols) {
+    const mapping = {};
+    csvCols.forEach(col => {
+        const lower = col.toLowerCase().replace(/[^a-z0-9]/g, '');
+        for (const [dbField, dbLabel] of Object.entries(DB_FIELDS)) {
+            const dbLower = dbLabel.toLowerCase().replace(/[^a-z0-9]/g, '');
+            if (lower === dbLower || lower.includes(dbLower) || dbLower.includes(lower)) {
+                mapping[col] = dbField;
+                break;
+            }
+        }
+    });
+    return mapping;
+}
 
 async function uploadFile() {
     const form = document.getElementById('uploadForm');
@@ -86,33 +118,38 @@ async function uploadFile() {
         document.getElementById('uploadProgress').classList.add('d-none');
         
         if (result.success) {
-            uploadColumns = result.columns;
             document.getElementById('uploadId').value = result.upload_id;
             
-            // Build mapping fields
-            const dbFields = [
-                'customer_name', 'mobile_number', 'location', 'state', 'existing_la',
-                'salary', 'actual_salary', 'dtmf_input', 'response_date', 'data_type',
-                'bank_name', 'current_status', 'update_status', 'remark', 'pan_number'
-            ];
+            // Auto-map columns based on name similarity
+            const autoMap = autoMapColumns(result.columns);
             
+            // Build mapping: one dropdown per CSV column
             let html = '';
-            dbFields.forEach(field => {
-                html += `<div class="col-md-4">
-                    <label class="form-label small text-muted">${field.replace(/_/g, ' ').toUpperCase()}</label>
-                    <select name="mapping[${field}]" class="form-select form-select-sm">
-                        <option value="">-- Skip --</option>`;
-                result.columns.forEach(col => {
-                    html += `<option value="${col}">${col}</option>`;
-                });
-                html += `</select></div>`;
+            result.columns.forEach(col => {
+                const autoValue = autoMap[col] || '';
+                html += `<div class="row align-items-center mb-2">
+                    <div class="col-md-5">
+                        <span class="fw-semibold small">${escapeHtml(col)}</span>
+                        <span class="text-muted small">(CSV)</span>
+                    </div>
+                    <div class="col-md-1 text-center">
+                        <i class="bi bi-arrow-right text-muted"></i>
+                    </div>
+                    <div class="col-md-6">
+                        <select name="mapping[${escapeHtml(col)}]" class="form-select form-select-sm">
+                            <option value="">-- Skip --</option>`;
+                for (const [dbField, dbLabel] of Object.entries(DB_FIELDS)) {
+                    const selected = autoValue === dbField ? 'selected' : '';
+                    html += `<option value="${dbField}" ${selected}>${dbLabel}</option>`;
+                }
+                html += `</select></div></div>`;
             });
             document.getElementById('mappingFields').innerHTML = html;
             
             // Preview table
             let headHtml = '<tr>';
             result.columns.forEach(col => {
-                headHtml += `<th class="small">${col}</th>`;
+                headHtml += `<th class="small">${escapeHtml(col)}</th>`;
             });
             headHtml += '</tr>';
             document.getElementById('previewHead').innerHTML = headHtml;
@@ -121,7 +158,7 @@ async function uploadFile() {
             result.sample.forEach(row => {
                 bodyHtml += '<tr>';
                 result.columns.forEach(col => {
-                    bodyHtml += `<td class="small">${row[col] || ''}</td>`;
+                    bodyHtml += `<td class="small">${escapeHtml(row[col] || '')}</td>`;
                 });
                 bodyHtml += '</tr>';
             });
@@ -130,11 +167,11 @@ async function uploadFile() {
             document.getElementById('step1').classList.add('d-none');
             document.getElementById('step2').classList.remove('d-none');
         } else {
-            alert(result.error || 'Upload failed.');
+            showToast(result.error || 'Upload failed.', 'danger');
         }
     } catch (err) {
         document.getElementById('uploadProgress').classList.add('d-none');
-        alert('Network error. Please try again.');
+        showToast('Network error. Please try again.', 'danger');
     }
 }
 
@@ -154,20 +191,27 @@ async function submitMapping() {
         document.getElementById('step3').classList.remove('d-none');
         
         if (result.success) {
-            document.getElementById('importResults').innerHTML = `
-                <div class="alert alert-success">
-                    <i class="bi bi-check-circle me-2"></i><?= result.message ?>
-                </div>
-                ${result.errors.length ? '<div class="mt-2"><small class="text-muted">Skipped rows:</small><ul class="small">' + result.errors.map(e => '<li>' + e + '</li>').join('') + '</ul></div>' : ''}
-                <a href="/bestdealcrm/admin/leads" class="btn btn-primary mt-2">View Leads</a>
-            `;
+            let html = `<div class="alert alert-success">
+                <i class="bi bi-check-circle me-2"></i>${escapeHtml(result.message)}
+            </div>`;
+            
+            if (result.errors && result.errors.length > 0) {
+                html += `<div class="mt-2"><small class="text-muted">Skipped rows:</small>
+                    <ul class="small" style="max-height:200px;overflow-y:auto">`;
+                result.errors.forEach(e => {
+                    html += `<li class="text-danger">${escapeHtml(e)}</li>`;
+                });
+                html += `</ul></div>`;
+            }
+            
+            html += `<a href="/bestdealcrm/admin/leads" class="btn btn-primary mt-2">View Leads</a>`;
+            document.getElementById('importResults').innerHTML = html;
         } else {
-            document.getElementById('importResults').innerHTML = `
-                <div class="alert alert-danger">${result.error || 'Import failed.'}</div>
-            `;
+            document.getElementById('importResults').innerHTML = 
+                `<div class="alert alert-danger">${escapeHtml(result.error || 'Import failed.')}</div>`;
         }
     } catch (err) {
-        alert('Network error. Please try again.');
+        showToast('Network error. Please try again.', 'danger');
     }
 }
 
@@ -175,5 +219,12 @@ function resetUpload() {
     document.getElementById('step1').classList.remove('d-none');
     document.getElementById('step2').classList.add('d-none');
     document.getElementById('uploadForm').reset();
+}
+
+function escapeHtml(text) {
+    if (!text) return '';
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
 }
 </script>

@@ -266,4 +266,118 @@ class LoginAgentController extends BaseController
             'form'  => $form,
         ]);
     }
+
+    /**
+     * Submit post-login form
+     */
+    public function submitPostLogin(): void
+    {
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            $this->json(['error' => 'Invalid request.'], 405);
+            return;
+        }
+
+        $leadId = (int)($_POST['lead_id'] ?? 0);
+        $formId = (int)($_POST['form_id'] ?? 0);
+        $values = $_POST['form_data'] ?? [];
+        $user = currentUser();
+
+        $lead = $this->leadModel->findById($leadId);
+        if (!$lead || $lead['assigned_to'] != $user['id']) {
+            $this->json(['error' => 'Unauthorized.'], 403);
+            return;
+        }
+
+        // Save submission
+        $existing = $this->db->fetchOne(
+            "SELECT id FROM form_submissions WHERE lead_id = ? AND submitted_by = ? AND form_id = ? ORDER BY created_at DESC LIMIT 1",
+            [$leadId, $user['id'], $formId]
+        );
+
+        if ($existing) {
+            $this->formModel->updateSubmission($existing['id'], $values);
+        } else {
+            $this->formModel->submitForm($formId, $leadId, $user['id'], $values);
+        }
+
+        // Transition to POST_LOGIN stage
+        $workflowModel = new \Models\Workflow();
+        $workflowModel->transition($leadId, $lead['workflow_stage'], 'POST_LOGIN', $user['id'], 'login_agent', null, 'post_login_submitted');
+
+        // Notify admin
+        $admins = $this->db->fetchAll("SELECT id FROM users WHERE role_id = (SELECT id FROM roles WHERE name = 'admin')");
+        foreach ($admins as $admin) {
+            createNotification($admin['id'], 'Post-Login Submitted', "Post-login form submitted for lead #{$leadId}.", 'info', $leadId);
+        }
+
+        logActivity($user['id'], 'post_login_submitted', 'lead', $leadId);
+
+        $this->json(['success' => true, 'message' => 'Post-Login form submitted.']);
+    }
+
+    /**
+     * AJAX endpoint for server-side cases data
+     */
+    public function casesAjax(): void
+    {
+        $user = currentUser();
+        $draw = (int)($_GET['draw'] ?? 1);
+        $start = (int)($_GET['start'] ?? 0);
+        $length = (int)($_GET['length'] ?? 25);
+        $search = $_GET['search']['value'] ?? '';
+        $stage = $_GET['workflow_stage'] ?? '';
+
+        $where = 'l.assigned_to = ?';
+        $params = [$user['id']];
+
+        if ($search) {
+            $where .= ' AND (l.id = ? OR l.customer_name LIKE ? OR l.mobile_number LIKE ?)';
+            $params[] = $search;
+            $params[] = '%' . $search . '%';
+            $params[] = '%' . $search . '%';
+        }
+        if ($stage) {
+            $where .= ' AND l.workflow_stage = ?';
+            $params[] = $stage;
+        }
+
+        $total = $this->db->count('leads l', $where, $params);
+        $sql = "SELECT l.id, l.customer_name, l.mobile_number, l.location, l.state,
+                       l.bank_name, l.workflow_stage, l.created_at, l.updated_at
+                FROM leads l WHERE {$where} ORDER BY l.created_at DESC LIMIT {$length} OFFSET {$start}";
+        $data = $this->db->fetchAll($sql, $params);
+
+        $this->json([
+            'draw'            => $draw,
+            'recordsTotal'    => $total,
+            'recordsFiltered' => $total,
+            'data'            => $data,
+        ]);
+    }
+
+    /**
+     * Notifications page
+     */
+    public function notifications(): void
+    {
+        $user = currentUser();
+        $notifications = $this->db->fetchAll(
+            "SELECT * FROM notifications WHERE user_id = ? ORDER BY created_at DESC LIMIT 50",
+            [$user['id']]
+        );
+
+        $this->view('login_agent/notifications', [
+            'title'         => 'Notifications',
+            'notifications' => $notifications,
+        ]);
+    }
+
+    public function readNotification(): void
+    {
+        $id = (int)($_POST['notification_id'] ?? 0);
+        if ($id) {
+            $this->db->update('notifications', ['is_read' => 1], 'id = ?', [$id]);
+            $this->json(['success' => true]);
+        }
+    }
 }

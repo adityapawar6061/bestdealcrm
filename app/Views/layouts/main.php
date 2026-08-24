@@ -56,6 +56,11 @@
 </head>
 <body>
     <?php $user = currentUser(); $role = $user['role_name'] ?? ''; ?>
+    <?php 
+    // Determine notification base URL and current URI for active nav detection
+    $currentUri = $_SERVER['REQUEST_URI'] ?? '';
+    $notifBase = '/' . explode('/', trim($currentUri, '/'))[0] ?? '/bestdealcrm';
+    ?>
     
     <!-- Sidebar -->
     <aside class="sidebar" id="sidebar">
@@ -65,68 +70,117 @@
         <nav class="mt-3">
             <?php if ($role === 'admin'): ?>
                 <div class="nav-section">Main</div>
-                <a href="/bestdealcrm/admin/dashboard" class="nav-link <?= ($_SERVER['REQUEST_URI'] ?? '') === '/bestdealcrm/admin/dashboard' ? 'active' : '' ?>">
+                <a href="/bestdealcrm/admin/dashboard" class="nav-link <?= ($currentUri === '/admin/dashboard' || $currentUri === '/bestdealcrm/admin/dashboard') ? 'active' : '' ?>">
                     <i class="bi bi-speedometer2"></i> Dashboard
                 </a>
                 
                 <div class="nav-section">User Management</div>
-                <a href="/bestdealcrm/admin/users" class="nav-link <?= str_contains($_SERVER['REQUEST_URI'] ?? '', '/admin/users') ? 'active' : '' ?>">
+                <a href="/bestdealcrm/admin/users" class="nav-link <?= str_contains($currentUri, '/admin/users') && !str_contains($currentUri, '/create') ? 'active' : '' ?>">
                     <i class="bi bi-people"></i> Users
                 </a>
-                <a href="/bestdealcrm/admin/roles" class="nav-link <?= str_contains($_SERVER['REQUEST_URI'] ?? '', '/admin/roles') ? 'active' : '' ?>">
+                <a href="/bestdealcrm/admin/roles" class="nav-link <?= str_contains($currentUri, '/admin/roles') ? 'active' : '' ?>">
                     <i class="bi bi-shield-lock"></i> Roles & Permissions
                 </a>
                 
                 <div class="nav-section">Lead Management</div>
-                <a href="/bestdealcrm/admin/leads/upload" class="nav-link <?= str_contains($_SERVER['REQUEST_URI'] ?? '', '/leads/upload') ? 'active' : '' ?>">
+                <a href="/bestdealcrm/admin/leads/upload" class="nav-link <?= str_contains($currentUri, '/leads/upload') ? 'active' : '' ?>">
                     <i class="bi bi-cloud-upload"></i> Upload Leads
                 </a>
-                <a href="/bestdealcrm/admin/leads" class="nav-link <?= (str_contains($_SERVER['REQUEST_URI'] ?? '', '/admin/leads') && !str_contains($_SERVER['REQUEST_URI'] ?? '', '/upload') && !str_contains($_SERVER['REQUEST_URI'] ?? '', '/assign')) ? 'active' : '' ?>">
+                <a href="/bestdealcrm/admin/leads" class="nav-link <?= (str_contains($currentUri, '/admin/leads') && !str_contains($currentUri, '/upload') && !str_contains($currentUri, '/assign')) ? 'active' : '' ?>">
                     <i class="bi bi-list-ul"></i> All Leads
                 </a>
-                <a href="/bestdealcrm/admin/leads/assign" class="nav-link <?= str_contains($_SERVER['REQUEST_URI'] ?? '', '/leads/assign') ? 'active' : '' ?>">
+                <a href="/bestdealcrm/admin/leads/assign" class="nav-link <?= str_contains($currentUri, '/leads/assign') ? 'active' : '' ?>">
                     <i class="bi bi-person-check"></i> Assign Leads
                 </a>
                 
                 <div class="nav-section">Workflow</div>
-                <a href="/bestdealcrm/admin/review1" class="nav-link <?= str_contains($_SERVER['REQUEST_URI'] ?? '', '/admin/review1') ? 'active' : '' ?>">
+                <a href="/bestdealcrm/admin/review1" class="nav-link <?= str_contains($currentUri, '/admin/review1') ? 'active' : '' ?>">
                     <i class="bi bi-clipboard-check"></i> Review (Stage 1)
                 </a>
-                <a href="/bestdealcrm/admin/review2" class="nav-link <?= str_contains($_SERVER['REQUEST_URI'] ?? '', '/admin/review2') ? 'active' : '' ?>">
+                <a href="/bestdealcrm/admin/review2" class="nav-link <?= str_contains($currentUri, '/admin/review2') ? 'active' : '' ?>">
                     <i class="bi bi-clipboard2-check"></i> Review (Stage 2)
                 </a>
-                <a href="/bestdealcrm/admin/workflow" class="nav-link <?= str_contains($_SERVER['REQUEST_URI'] ?? '', '/admin/workflow') ? 'active' : '' ?>">
+                <a href="/bestdealcrm/admin/workflow" class="nav-link <?= str_contains($currentUri, '/admin/workflow') ? 'active' : '' ?>">
                     <i class="bi bi-diagram-3"></i> Workflow Stages
                 </a>
                 
                 <div class="nav-section">Builder</div>
-                <a href="/bestdealcrm/admin/form-builder" class="nav-link <?= str_contains($_SERVER['REQUEST_URI'] ?? '', '/form-builder') ? 'active' : '' ?>">
+                <a href="/bestdealcrm/admin/form-builder" class="nav-link <?= str_contains($currentUri, '/form-builder') ? 'active' : '' ?>">
                     <i class="bi bi-ui-checks-grid"></i> Form Builder
                 </a>
-                <a href="/bestdealcrm/admin/table-builder" class="nav-link <?= str_contains($_SERVER['REQUEST_URI'] ?? '', '/table-builder') ? 'active' : '' ?>">
+                <a href="/bestdealcrm/admin/table-builder" class="nav-link <?= str_contains($currentUri, '/table-builder') ? 'active' : '' ?>">
                     <i class="bi bi-table"></i> Table Builder
                 </a>
                 
                 <div class="nav-section">System</div>
-                <a href="/bestdealcrm/admin/notifications" class="nav-link <?= str_contains($_SERVER['REQUEST_URI'] ?? '', '/notifications') ? 'active' : '' ?>">
+                <a href="/bestdealcrm/admin/notifications" class="nav-link <?= str_contains($currentUri, '/notifications') ? 'active' : '' ?>">
                     <i class="bi bi-bell"></i> Notifications
                 </a>
-                <a href="/bestdealcrm/admin/activity-logs" class="nav-link <?= str_contains($_SERVER['REQUEST_URI'] ?? '', '/activity-logs') ? 'active' : '' ?>">
+                <a href="/bestdealcrm/admin/activity-logs" class="nav-link <?= str_contains($currentUri, '/activity-logs') ? 'active' : '' ?>">
                     <i class="bi bi-clock-history"></i> Activity Logs
                 </a>
-            <?php elseif ($role === 'agent'): ?>
-                <a href="/bestdealcrm/agent/dashboard" class="nav-link <?= str_contains($_SERVER['REQUEST_URI'] ?? '', '/agent/dashboard') ? 'active' : '' ?>">
+
+            <?php elseif ($role === 'team_leader'): ?>
+                <div class="nav-section">Main</div>
+                <a href="/bestdealcrm/team-leader/dashboard" class="nav-link <?= str_contains($currentUri, '/team-leader/dashboard') ? 'active' : '' ?>">
                     <i class="bi bi-speedometer2"></i> Dashboard
                 </a>
-                <a href="/bestdealcrm/agent/leads" class="nav-link <?= str_contains($_SERVER['REQUEST_URI'] ?? '', '/agent/leads') ? 'active' : '' ?>">
+                <a href="/bestdealcrm/team-leader/team" class="nav-link <?= str_contains($currentUri, '/team-leader/team') && !str_contains($currentUri, '/leads') ? 'active' : '' ?>">
+                    <i class="bi bi-people"></i> My Team
+                </a>
+                <a href="/bestdealcrm/team-leader/team/leads" class="nav-link <?= str_contains($currentUri, '/team/leads') ? 'active' : '' ?>">
+                    <i class="bi bi-list-ul"></i> Team Leads
+                </a>
+                <a href="/bestdealcrm/team-leader/notifications" class="nav-link <?= str_contains($currentUri, '/notifications') ? 'active' : '' ?>">
+                    <i class="bi bi-bell"></i> Notifications
+                </a>
+
+            <?php elseif ($role === 'agent'): ?>
+                <div class="nav-section">Main</div>
+                <a href="/bestdealcrm/agent/dashboard" class="nav-link <?= str_contains($currentUri, '/agent/dashboard') ? 'active' : '' ?>">
+                    <i class="bi bi-speedometer2"></i> Dashboard
+                </a>
+                <a href="/bestdealcrm/agent/leads" class="nav-link <?= str_contains($currentUri, '/agent/leads') && !str_contains($currentUri, '/dashboard') ? 'active' : '' ?>">
                     <i class="bi bi-list-ul"></i> My Leads
                 </a>
+                <a href="/bestdealcrm/agent/notifications" class="nav-link <?= str_contains($currentUri, '/notifications') ? 'active' : '' ?>">
+                    <i class="bi bi-bell"></i> Notifications
+                </a>
+
             <?php elseif ($role === 'login_agent'): ?>
-                <a href="/bestdealcrm/login-agent/dashboard" class="nav-link <?= str_contains($_SERVER['REQUEST_URI'] ?? '', '/login-agent/dashboard') ? 'active' : '' ?>">
+                <div class="nav-section">Main</div>
+                <a href="/bestdealcrm/login-agent/dashboard" class="nav-link <?= str_contains($currentUri, '/login-agent/dashboard') ? 'active' : '' ?>">
                     <i class="bi bi-speedometer2"></i> Dashboard
                 </a>
-                <a href="/bestdealcrm/login-agent/cases" class="nav-link <?= str_contains($_SERVER['REQUEST_URI'] ?? '', '/login-agent/cases') ? 'active' : '' ?>">
+                <a href="/bestdealcrm/login-agent/cases" class="nav-link <?= str_contains($currentUri, '/login-agent/cases') && !str_contains($currentUri, '/dashboard') ? 'active' : '' ?>">
                     <i class="bi bi-folder2-open"></i> Assigned Cases
+                </a>
+                <a href="/bestdealcrm/login-agent/notifications" class="nav-link <?= str_contains($currentUri, '/notifications') ? 'active' : '' ?>">
+                    <i class="bi bi-bell"></i> Notifications
+                </a>
+
+            <?php elseif ($role === 'underwriting'): ?>
+                <div class="nav-section">Main</div>
+                <a href="/bestdealcrm/underwriting/dashboard" class="nav-link <?= str_contains($currentUri, '/underwriting/dashboard') ? 'active' : '' ?>">
+                    <i class="bi bi-speedometer2"></i> Dashboard
+                </a>
+                <a href="/bestdealcrm/underwriting/cases" class="nav-link <?= str_contains($currentUri, '/underwriting/cases') && !str_contains($currentUri, '/dashboard') ? 'active' : '' ?>">
+                    <i class="bi bi-folder2-open"></i> Cases
+                </a>
+                <a href="/bestdealcrm/underwriting/notifications" class="nav-link <?= str_contains($currentUri, '/notifications') ? 'active' : '' ?>">
+                    <i class="bi bi-bell"></i> Notifications
+                </a>
+
+            <?php elseif ($role === 'dispatch'): ?>
+                <div class="nav-section">Main</div>
+                <a href="/bestdealcrm/dispatch/dashboard" class="nav-link <?= str_contains($currentUri, '/dispatch/dashboard') ? 'active' : '' ?>">
+                    <i class="bi bi-speedometer2"></i> Dashboard
+                </a>
+                <a href="/bestdealcrm/dispatch/cases" class="nav-link <?= str_contains($currentUri, '/dispatch/cases') && !str_contains($currentUri, '/dashboard') ? 'active' : '' ?>">
+                    <i class="bi bi-folder2-open"></i> Cases
+                </a>
+                <a href="/bestdealcrm/dispatch/notifications" class="nav-link <?= str_contains($currentUri, '/notifications') ? 'active' : '' ?>">
+                    <i class="bi bi-bell"></i> Notifications
                 </a>
             <?php endif; ?>
         </nav>
@@ -143,8 +197,16 @@
                 <span class="text-muted"><?= htmlspecialchars($title ?? '') ?></span>
             </div>
             <div class="d-flex align-items-center gap-3">
-                <?php $notifCount = unreadNotificationCount(); ?>
-                <a href="/bestdealcrm/<?= $role === 'admin' ? 'admin' : $role === 'agent' ? 'agent' : 'login-agent' ?>/notifications" class="position-relative text-decoration-none">
+                <?php 
+                $notifCount = unreadNotificationCount();
+                $rolePrefix = $role === 'admin' ? 'admin' : 
+                              $role === 'agent' ? 'agent' : 
+                              $role === 'login_agent' ? 'login-agent' : 
+                              $role === 'team_leader' ? 'team-leader' :
+                              $role === 'underwriting' ? 'underwriting' :
+                              $role === 'dispatch' ? 'dispatch' : 'admin';
+                ?>
+                <a href="/bestdealcrm/<?= $rolePrefix ?>/notifications" class="position-relative text-decoration-none">
                     <i class="bi bi-bell fs-5 text-muted"></i>
                     <?php if ($notifCount > 0): ?>
                         <span class="badge bg-danger notification-badge"><?= $notifCount > 99 ? '99+' : $notifCount ?></span>
@@ -208,8 +270,15 @@
             });
             return await response.json();
         }
+
+        // Close sidebar on mobile when clicking outside
+        document.addEventListener('click', function(e) {
+            const sidebar = document.getElementById('sidebar');
+            if (sidebar.classList.contains('show') && !sidebar.contains(e.target) && !e.target.closest('button')) {
+                sidebar.classList.remove('show');
+            }
+        });
     </script>
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
     <script src="/bestdealcrm/public/assets/js/app.js"></script>
 </body>
 </html>

@@ -10,19 +10,16 @@
         </div>
     <?php else: ?>
         <?php foreach ($notifications as $notif): ?>
-        <div class="d-flex align-items-start gap-3 p-3 border-bottom <?= $notif['is_read'] ? '' : 'bg-light' ?>" 
-             id="notif-<?= $notif['id'] ?>">
-            <div class="rounded-circle d-flex align-items-center justify-content-center flex-shrink-0" 
-                 style="width:40px;height:40px"
-                 style="background:<?= $notif['type'] === 'success' ? '#dcfce7' : $notif['type'] === 'warning' ? '#fef3c7' : $notif['type'] === 'error' ? '#fecaca' : '#dbeafe' ?>">
-                <i class="bi bi-<?= $notif['type'] === 'success' ? 'check-circle text-success' : $notif['type'] === 'warning' ? 'exclamation-triangle text-warning' : $notif['type'] === 'error' ? 'x-circle text-danger' : 'info-circle text-primary' ?>"></i>
+        <div class="d-flex align-items-start gap-3 p-3 border-bottom <?= $notif['is_read'] ? '' : 'bg-light' ?>" id="notif-<?= $notif['id'] ?>">
+            <div class="rounded-circle d-flex align-items-center justify-content-center flex-shrink-0" style="width:40px;height:40px;background:<?= $notif['type'] === 'success' ? '#dcfce7' : $notif['type'] === 'warning' ? '#fef3c7' : '#dbeafe' ?>">
+                <i class="bi bi-<?= $notif['type'] === 'success' ? 'check-circle text-success' : $notif['type'] === 'warning' ? 'exclamation-triangle text-warning' : 'info-circle text-primary' ?>"></i>
             </div>
             <div class="flex-grow-1">
                 <div class="fw-semibold small"><?= htmlspecialchars($notif['title']) ?></div>
                 <div class="text-muted" style="font-size:0.85rem"><?= htmlspecialchars($notif['message']) ?></div>
                 <small class="text-muted"><?= formatDate($notif['created_at']) ?></small>
                 <?php if ($notif['related_lead_id']): ?>
-                    <a href="/bestdealcrm/admin/leads/<?= $notif['related_lead_id'] ?>" class="ms-2 small">View Lead</a>
+                    <a href="/bestdealcrm/agent/leads/<?= $notif['related_lead_id'] ?>" class="ms-2 small">View Lead</a>
                 <?php endif; ?>
             </div>
             <?php if (!$notif['is_read']): ?>
@@ -35,10 +32,8 @@
 
 <script>
 async function markRead(id) {
-    const formData = new FormData();
-    formData.append('notification_id', id);
-    await ajaxPost('/bestdealcrm/admin/notifications/read', formData);
-    const el = document.getElementById('notif-' + id);
-    if (el) el.classList.remove('bg-light');
+    const fd = new FormData(); fd.append('notification_id', id);
+    await ajaxPost('/bestdealcrm/agent/notifications/read', fd);
+    const el = document.getElementById('notif-' + id); if (el) el.classList.remove('bg-light');
 }
 </script>

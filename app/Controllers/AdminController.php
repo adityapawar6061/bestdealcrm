@@ -702,4 +702,153 @@ class AdminController extends BaseController
             'logs'  => $logs,
         ]);
     }
+
+    // ========== AJAX LEAD DATA (Server-side) ==========
+
+    public function leadsAjax(): void
+    {
+        $draw = (int)($_GET['draw'] ?? 1);
+        $start = (int)($_GET['start'] ?? 0);
+        $length = (int)($_GET['length'] ?? 25);
+        $search = $_GET['search']['value'] ?? '';
+        $stage = $_GET['workflow_stage'] ?? '';
+        $agent = $_GET['assigned_to'] ?? '';
+        $bank = $_GET['bank_name'] ?? '';
+
+        $where = '1=1';
+        $params = [];
+
+        if ($search) {
+            $where .= ' AND (l.id = ? OR l.customer_name LIKE ? OR l.mobile_number LIKE ? OR l.pan_number LIKE ? OR l.bank_name LIKE ?)';
+            $params[] = $search;
+            $params[] = '%' . $search . '%';
+            $params[] = '%' . $search . '%';
+            $params[] = '%' . $search . '%';
+            $params[] = '%' . $search . '%';
+        }
+        if ($stage) {
+            $where .= ' AND l.workflow_stage = ?';
+            $params[] = $stage;
+        }
+        if ($agent) {
+            $where .= ' AND l.assigned_to = ?';
+            $params[] = $agent;
+        }
+        if ($bank) {
+            $where .= ' AND l.bank_name = ?';
+            $params[] = $bank;
+        }
+
+        $total = $this->db->count('leads l', $where, $params);
+        $sql = "SELECT l.id, l.customer_name, l.mobile_number, l.location, l.state,
+                       l.existing_la, l.salary, l.actual_salary, l.bank_name,
+                       l.current_status, l.workflow_stage, l.created_at,
+                       l.assigned_to, u.name as assigned_to_name
+                FROM leads l
+                LEFT JOIN users u ON l.assigned_to = u.id
+                WHERE {$where}
+                ORDER BY l.created_at DESC
+                LIMIT {$length} OFFSET {$start}";
+        $data = $this->db->fetchAll($sql, $params);
+
+        $this->json([
+            'draw'            => $draw,
+            'recordsTotal'    => $total,
+            'recordsFiltered' => $total,
+            'data'            => $data,
+        ]);
+    }
+
+    // ========== DOCUMENT UPLOAD/DOWNLOAD ==========
+
+    public function uploadDocument(): void
+    {
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            $this->json(['error' => 'Invalid request.'], 405);
+            return;
+        }
+
+        $leadId = (int)($_POST['lead_id'] ?? 0);
+        if (!$leadId) {
+            $this->json(['error' => 'Lead ID required.'], 400);
+            return;
+        }
+
+        if (!isset($_FILES['document'])) {
+            $this->json(['error' => 'No file uploaded.'], 400);
+            return;
+        }
+
+        $file = $_FILES['document'];
+        $allowedExts = ['pdf', 'jpg', 'jpeg', 'png', 'doc', 'docx', 'xls', 'xlsx'];
+        $ext = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
+
+        if (!in_array($ext, $allowedExts)) {
+            $this->json(['error' => 'File type not allowed.'], 400);
+            return;
+        }
+
+        if ($file['size'] > 10 * 1024 * 1024) {
+            $this->json(['error' => 'File too large (max 10MB).'], 400);
+            return;
+        }
+
+        $finfo = finfo_open(FILEINFO_MIME_TYPE);
+        $mimeType = finfo_file($finfo, $file['tmp_name']);
+        finfo_close($finfo);
+
+        $uploadDir = ROOT_PATH . '/public/uploads/documents/' . $leadId . '/';
+        if (!is_dir($uploadDir)) {
+            mkdir($uploadDir, 0755, true);
+        }
+
+        $safeFilename = bin2hex(random_bytes(16)) . '.' . $ext;
+        $destination = $uploadDir . $safeFilename;
+
+        if (move_uploaded_file($file['tmp_name'], $destination)) {
+            $docId = $this->db->insert('documents', [
+                'lead_id'        => $leadId,
+                'uploaded_by'    => currentUser()['id'],
+                'filename'       => $safeFilename,
+                'original_name'  => $file['name'],
+                'mime_type'      => $mimeType,
+                'file_size'      => $file['size'],
+                'document_type'  => $_POST['document_type'] ?? 'general',
+                'created_at'     => date('Y-m-d H:i:s'),
+            ]);
+
+            logActivity(currentUser()['id'], 'document_uploaded', 'document', (int)$docId, null, $file['name']);
+
+            $this->json(['success' => true, 'message' => 'Document uploaded.', 'id' => $docId]);
+        } else {
+            $this->json(['error' => 'Failed to save file.'], 500);
+        }
+    }
+
+    public function downloadDocument(int $id): void
+    {
+        $doc = $this->db->fetchOne(
+            "SELECT d.*, l.id as lead_num FROM documents d JOIN leads l ON d.lead_id = l.id WHERE d.id = ?",
+            [$id]
+        );
+
+        if (!$doc) {
+            $this->redirect('/admin/leads', 'error', 'Document not found.');
+            return;
+        }
+
+        $filePath = ROOT_PATH . '/public/uploads/documents/' . $doc['lead_id'] . '/' . $doc['filename'];
+        if (!file_exists($filePath)) {
+            $this->redirect('/admin/leads/' . $doc['lead_id'], 'error', 'File not found on disk.');
+            return;
+        }
+
+        logActivity(currentUser()['id'], 'document_downloaded', 'document', $id);
+
+        header('Content-Type: ' . $doc['mime_type']);
+        header('Content-Disposition: attachment; filename="' . $doc['original_name'] . '"');
+        header('Content-Length: ' . $doc['file_size']);
+        readfile($filePath);
+        exit;
+    }
 }

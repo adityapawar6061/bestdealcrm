@@ -231,4 +231,155 @@ class AgentController extends BaseController
 
         $this->json(['success' => true, 'message' => 'Form submitted to Admin for review.']);
     }
+
+    /**
+     * AJAX endpoint for server-side lead data (for DataTables-style tables)
+     */
+    public function leadsAjax(): void
+    {
+        $user = currentUser();
+        $draw = (int)($_GET['draw'] ?? 1);
+        $start = (int)($_GET['start'] ?? 0);
+        $length = (int)($_GET['length'] ?? 25);
+        $search = $_GET['search']['value'] ?? '';
+        $stage = $_GET['workflow_stage'] ?? '';
+
+        $where = 'l.assigned_to = ?';
+        $params = [$user['id']];
+
+        if ($search) {
+            $where .= ' AND (l.id = ? OR l.customer_name LIKE ? OR l.mobile_number LIKE ? OR l.pan_number LIKE ?)';
+            $params[] = $search;
+            $params[] = '%' . $search . '%';
+            $params[] = '%' . $search . '%';
+            $params[] = '%' . $search . '%';
+        }
+        if ($stage) {
+            $where .= ' AND l.workflow_stage = ?';
+            $params[] = $stage;
+        }
+
+        $total = $this->db->count('leads l', $where, $params);
+        $sql = "SELECT l.id, l.customer_name, l.mobile_number, l.location, l.state, 
+                       l.existing_la, l.salary, l.actual_salary, l.bank_name, 
+                       l.current_status, l.workflow_stage, l.created_at, l.updated_at
+                FROM leads l WHERE {$where} ORDER BY l.created_at DESC LIMIT {$length} OFFSET {$start}";
+        $data = $this->db->fetchAll($sql, $params);
+
+        $this->json([
+            'draw'            => $draw,
+            'recordsTotal'    => $total,
+            'recordsFiltered' => $total,
+            'data'            => $data,
+        ]);
+    }
+
+    /**
+     * Notifications page
+     */
+    public function notifications(): void
+    {
+        $user = currentUser();
+        $notifications = $this->db->fetchAll(
+            "SELECT * FROM notifications WHERE user_id = ? ORDER BY created_at DESC LIMIT 50",
+            [$user['id']]
+        );
+
+        $this->view('agent/notifications', [
+            'title'         => 'Notifications',
+            'notifications' => $notifications,
+        ]);
+    }
+
+    public function readNotification(): void
+    {
+        $id = (int)($_POST['notification_id'] ?? 0);
+        if ($id) {
+            $this->db->update('notifications', ['is_read' => 1], 'id = ?', [$id]);
+            $this->json(['success' => true]);
+        }
+    }
+
+    /**
+     * Document upload handler
+     */
+    public function uploadDocument(): void
+    {
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            $this->json(['error' => 'Invalid request.'], 405);
+            return;
+        }
+
+        $leadId = (int)($_POST['lead_id'] ?? 0);
+        $user = currentUser();
+
+        $lead = $this->leadModel->findById($leadId);
+        if (!$lead || $lead['assigned_to'] != $user['id']) {
+            $this->json(['error' => 'Unauthorized.'], 403);
+            return;
+        }
+
+        if (!isset($_FILES['document'])) {
+            $this->json(['error' => 'No file uploaded.'], 400);
+            return;
+        }
+
+        $file = $_FILES['document'];
+        $allowedTypes = ['pdf', 'jpg', 'jpeg', 'png', 'doc', 'docx', 'xls', 'xlsx'];
+        $ext = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
+
+        if (!in_array($ext, $allowedTypes)) {
+            $this->json(['error' => 'File type not allowed.'], 400);
+            return;
+        }
+
+        if ($file['size'] > 10 * 1024 * 1024) {
+            $this->json(['error' => 'File too large (max 10MB).'], 400);
+            return;
+        }
+
+        // Validate MIME type
+        $finfo = finfo_open(FILEINFO_MIME_TYPE);
+        $mimeType = finfo_file($finfo, $file['tmp_name']);
+        finfo_close($finfo);
+
+        $allowedMimes = [
+            'application/pdf', 'image/jpeg', 'image/png',
+            'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            'application/vnd.ms-excel', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        ];
+
+        if (!in_array($mimeType, $allowedMimes)) {
+            $this->json(['error' => 'Invalid file type.'], 400);
+            return;
+        }
+
+        // Store file securely
+        $uploadDir = ROOT_PATH . '/public/uploads/documents/' . $leadId . '/';
+        if (!is_dir($uploadDir)) {
+            mkdir($uploadDir, 0755, true);
+        }
+
+        $safeFilename = bin2hex(random_bytes(16)) . '.' . $ext;
+        $destination = $uploadDir . $safeFilename;
+
+        if (move_uploaded_file($file['tmp_name'], $destination)) {
+            $docId = $this->db->insert('documents', [
+                'lead_id'        => $leadId,
+                'uploaded_by'    => $user['id'],
+                'filename'       => $safeFilename,
+                'original_name'  => $file['name'],
+                'mime_type'      => $mimeType,
+                'file_size'      => $file['size'],
+                'document_type'  => $_POST['document_type'] ?? 'general',
+                'created_at'     => date('Y-m-d H:i:s'),
+            ]);
+
+            logActivity($user['id'], 'document_uploaded', 'document', (int)$docId, null, $file['name']);
+
+            $this->json(['success' => true, 'message' => 'Document uploaded.', 'id' => $docId]);
+        } else {
+            $this->json(['error' => 'Failed to save file.'], 500);
+        }
+    }
 }

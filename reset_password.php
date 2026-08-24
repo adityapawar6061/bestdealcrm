@@ -1,13 +1,29 @@
 <?php
 /**
  * BestDeal CRM - Password Reset Tool
- * Access: https://bdfsloans.com/bestdealcrm/reset_password.php
  */
 
-$dbHost = '68.178.237.250';
-$dbName = 'bestdealcrm';
-$dbUser = 'sayali';
-$dbPass = 'sayali@1234';
+// Load environment config if available
+$rootPath = dirname(__DIR__);
+$envFile = $rootPath . '/.env';
+if (file_exists($envFile)) {
+    $lines = file($envFile, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+    foreach ($lines as $line) {
+        if (strpos(trim($line), '#') === 0 || empty(trim($line))) continue;
+        if (strpos($line, '=') !== false) {
+            [$key, $value] = explode('=', $line, 2);
+            $key = trim($key);
+            $value = trim(trim($value), '"\'');
+            putenv("{$key}={$value}");
+            $_ENV[$key] = $value;
+        }
+    }
+}
+
+$dbHost = getenv('DB_HOST') ?: 'localhost';
+$dbName = getenv('DB_NAME') ?: 'bestdealcrm';
+$dbUser = getenv('DB_USER') ?: 'root';
+$dbPass = getenv('DB_PASS') ?: '';
 
 $message = '';
 $error = '';
