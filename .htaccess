@@ -1,13 +1,7 @@
 RewriteEngine On
 RewriteBase /bestdealcrm/
 
-# If request is for a real file, serve it directly
-RewriteCond %{REQUEST_FILENAME} -f
-RewriteRule ^ - [L]
-
-# If request is for a real directory, serve it directly
-RewriteCond %{REQUEST_FILENAME} -d
-RewriteRule ^ - [L]
-
-# Everything else goes to public/index.php
-RewriteRule ^(.*)$ public/index.php [QSA,L]
+# Only rewrite non-file, non-directory requests to root index.php
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
+RewriteRule ^ index.php [L,QSA]
