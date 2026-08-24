@@ -3,3 +3,7 @@ deployment:
   tasks:
     - export DEPLOYPATH=/home/un7xnx5s1w7m/public_html/bdfsloans.com/bestdealcrm/
     - /bin/cp -R * $DEPLOYPATH
+    - /bin/chmod -R 755 $DEPLOYPATH
+    - /bin/chmod 644 $DEPLOYPATH/*.php
+    - /bin/chmod 644 $DEPLOYPATH/.htaccess
+    - /bin/chmod 644 $DEPLOYPATH/public/.htaccess
