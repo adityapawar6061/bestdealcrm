@@ -58,7 +58,18 @@ $_SERVER['REQUEST_URI'] = $requestUri ?: '/';
 
 // Dispatch
 if (isset($router) && $router instanceof Router) {
-    $router->dispatch();
+    try {
+        $router->dispatch();
+    } catch (Throwable $e) {
+        http_response_code(500);
+        error_log('DISPATCH ERROR: ' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine());
+        if (getenv('APP_DEBUG') === 'true' || true) {
+            echo '<h1>Error</h1>';
+            echo '<p>' . htmlspecialchars($e->getMessage()) . '</p>';
+            echo '<p>' . htmlspecialchars($e->getFile()) . ':' . $e->getLine() . '</p>';
+            echo '<pre>' . htmlspecialchars($e->getTraceAsString()) . '</pre>';
+        }
+    }
 } else {
     http_response_code(500);
     echo 'Router not initialized';
