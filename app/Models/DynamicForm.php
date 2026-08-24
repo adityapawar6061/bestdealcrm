@@ -39,6 +39,34 @@ class DynamicForm
     }
 
     /**
+     * Delete form with all sections, fields, options, and role access
+     */
+    public function deleteForm(int $formId): void
+    {
+        // Get all sections
+        $sections = $this->db->fetchAll(
+            "SELECT id FROM form_sections WHERE form_id = ?",
+            [$formId]
+        );
+
+        foreach ($sections as $section) {
+            // Delete field options for fields in this section
+            $fields = $this->db->fetchAll(
+                "SELECT id FROM form_fields WHERE section_id = ?",
+                [$section['id']]
+            );
+            foreach ($fields as $field) {
+                $this->db->delete('form_field_options', 'field_id = ?', [$field['id']]);
+            }
+            $this->db->delete('form_fields', 'section_id = ?', [$section['id']]);
+        }
+
+        $this->db->delete('form_sections', 'form_id = ?', [$formId]);
+        $this->db->delete('form_role_access', 'form_id = ?', [$formId]);
+        $this->db->delete('forms', 'id = ?', [$formId]);
+    }
+
+    /**
      * Get form with sections and fields
      */
     public function getFullForm(int $formId): ?array

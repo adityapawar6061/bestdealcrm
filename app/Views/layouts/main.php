@@ -100,6 +100,12 @@
                 <a href="/bestdealcrm/admin/review2" class="nav-link <?= str_contains($currentUri, '/admin/review2') ? 'active' : '' ?>">
                     <i class="bi bi-clipboard2-check"></i> Review (Stage 2)
                 </a>
+                <a href="/bestdealcrm/admin/review3" class="nav-link <?= str_contains($currentUri, '/admin/review3') ? 'active' : '' ?>">
+                    <i class="bi bi-clipboard2-check"></i> Review (Stage 3)
+                </a>
+                <a href="/bestdealcrm/admin/review4" class="nav-link <?= str_contains($currentUri, '/admin/review4') ? 'active' : '' ?>">
+                    <i class="bi bi-clipboard2-check"></i> Review (Stage 4)
+                </a>
                 <a href="/bestdealcrm/admin/workflow" class="nav-link <?= str_contains($currentUri, '/admin/workflow') ? 'active' : '' ?>">
                     <i class="bi bi-diagram-3"></i> Workflow Stages
                 </a>
@@ -107,9 +113,6 @@
                 <div class="nav-section">Builder</div>
                 <a href="/bestdealcrm/admin/form-builder" class="nav-link <?= str_contains($currentUri, '/form-builder') ? 'active' : '' ?>">
                     <i class="bi bi-ui-checks-grid"></i> Form Builder
-                </a>
-                <a href="/bestdealcrm/admin/table-builder" class="nav-link <?= str_contains($currentUri, '/table-builder') ? 'active' : '' ?>">
-                    <i class="bi bi-table"></i> Table Builder
                 </a>
                 
                 <div class="nav-section">System</div>
@@ -250,33 +253,83 @@
         // CSRF token for AJAX
         const CSRF_TOKEN = '<?= csrfToken() ?>';
         
-        // Generic AJAX helper
+        // Show toast notification
+        function showToast(message, type) {
+            type = type || 'info';
+            var container = document.getElementById('toast-container');
+            if (!container) {
+                container = document.createElement('div');
+                container.id = 'toast-container';
+                container.style.cssText = 'position:fixed;top:20px;right:20px;z-index:9999;max-width:400px;';
+                document.body.appendChild(container);
+            }
+            var colors = { success: '#22c55e', danger: '#ef4444', warning: '#f59e0b', info: '#3b82f6' };
+            var bg = colors[type] || colors.info;
+            var toast = document.createElement('div');
+            toast.style.cssText = 'background:' + bg + ';color:#fff;padding:12px 20px;border-radius:8px;margin-bottom:8px;box-shadow:0 4px 12px rgba(0,0,0,0.15);font-size:14px;display:flex;justify-content:space-between;align-items:center;animation:fadeIn 0.3s ease;';
+            toast.innerHTML = '<span>' + message + '</span><button onclick="this.parentElement.remove()" style="background:none;border:none;color:#fff;font-size:18px;cursor:pointer;margin-left:10px">&times;</button>';
+            container.appendChild(toast);
+            setTimeout(function() { toast.remove(); }, 5000);
+        }
+        
+        // Generic AJAX helper with error handling
         async function ajaxPost(url, data) {
-            const formData = data instanceof FormData ? data : (() => {
-                const fd = new FormData();
-                for (const [key, value] of Object.entries(data)) {
-                    if (Array.isArray(value)) {
-                        value.forEach(v => fd.append(key + '[]', v));
+            var formData = data instanceof FormData ? data : (function() {
+                var fd = new FormData();
+                for (var key in data) {
+                    if (Array.isArray(data[key])) {
+                        data[key].forEach(function(v) { fd.append(key + '[]', v); });
                     } else {
-                        fd.append(key, value);
+                        fd.append(key, data[key]);
                     }
                 }
                 return fd;
             })();
             formData.append('_csrf_token', CSRF_TOKEN);
-            
-            const response = await fetch(url, {
-                method: 'POST',
-                body: formData,
-                headers: { 'X-Requested-With': 'XMLHttpRequest' }
-            });
-            return await response.json();
+            try {
+                var response = await fetch(url, {
+                    method: 'POST',
+                    body: formData,
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' }
+                });
+                var text = await response.text();
+                try {
+                    return JSON.parse(text);
+                } catch(e) {
+                    console.error('Non-JSON response from', url, ':', text.substring(0, 500));
+                    showToast('Server error. Check console for details.', 'danger');
+                    return { error: 'Invalid server response' };
+                }
+            } catch(err) {
+                console.error('AJAX error:', url, err);
+                showToast('Network error: ' + err.message, 'danger');
+                return { error: err.message };
+            }
+        }
+        
+        // Generic AJAX GET helper
+        async function ajaxGet(url) {
+            try {
+                var response = await fetch(url, {
+                    headers: { 'X-Requested-With': 'XMLHttpRequest' }
+                });
+                var text = await response.text();
+                try {
+                    return JSON.parse(text);
+                } catch(e) {
+                    console.error('Non-JSON response from', url, ':', text.substring(0, 500));
+                    return { error: 'Invalid server response' };
+                }
+            } catch(err) {
+                console.error('AJAX GET error:', url, err);
+                return { error: err.message };
+            }
         }
 
         // Close sidebar on mobile when clicking outside
         document.addEventListener('click', function(e) {
-            const sidebar = document.getElementById('sidebar');
-            if (sidebar.classList.contains('show') && !sidebar.contains(e.target) && !e.target.closest('button')) {
+            var sidebar = document.getElementById('sidebar');
+            if (sidebar && sidebar.classList.contains('show') && !sidebar.contains(e.target) && !e.target.closest('button')) {
                 sidebar.classList.remove('show');
             }
         });

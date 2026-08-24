@@ -164,9 +164,15 @@ async function createUser() {
     const form = document.getElementById('createUserForm');
     const formData = new FormData(form);
     const result = await ajaxPost('/bestdealcrm/admin/users/create', formData);
-    if (result.success) { alert(result.message); location.reload(); }
-    else if (result.errors) { alert(Object.values(result.errors).join('\n')); }
-    else { alert(result.error || 'Error occurred.'); }
+    console.log('Create user result:', result);
+    if (result && result.success) {
+        showToast(result.message || 'User created!', 'success');
+        setTimeout(function() { location.reload(); }, 1000);
+    } else if (result && result.errors) {
+        showToast(Object.values(result.errors).join('\n'), 'danger');
+    } else {
+        showToast(result.error || 'Error creating user.', 'danger');
+    }
 }
 
 function editUser(id, name, email, roleId, teamLeaderId) {
@@ -182,15 +188,15 @@ async function updateUser() {
     const form = document.getElementById('editUserForm');
     const formData = new FormData(form);
     const result = await ajaxPost('/bestdealcrm/admin/users/update', formData);
-    if (result.success) { alert(result.message); location.reload(); }
-    else if (result.errors) { alert(Object.values(result.errors).join('\n')); }
-    else { alert(result.error || 'Error occurred.'); }
+    if (result && result.success) { showToast(result.message || 'Updated!', 'success'); setTimeout(function() { location.reload(); }, 1000); }
+    else if (result && result.errors) { showToast(Object.values(result.errors).join('\n'), 'danger'); }
+    else { showToast(result.error || 'Error updating user.', 'danger'); }
 }
 
 async function toggleStatus(userId) {
     const fd = new FormData(); fd.append('user_id', userId);
     const result = await ajaxPost('/bestdealcrm/admin/users/toggle-status', fd);
-    if (result.success) location.reload();
-    else alert(result.error || 'Error occurred.');
+    if (result && result.success) { showToast('Status updated.', 'success'); setTimeout(function() { location.reload(); }, 500); }
+    else showToast(result.error || 'Error.', 'danger');
 }
 </script>

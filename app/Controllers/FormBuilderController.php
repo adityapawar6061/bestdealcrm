@@ -206,4 +206,60 @@ class FormBuilderController extends BaseController
             $this->json(['success' => true, 'message' => 'Field deleted.']);
         }
     }
+
+    /**
+     * Delete form with password confirmation
+     */
+    public function deleteWithPassword(): void
+    {
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            $this->json(['error' => 'Invalid request.'], 405);
+            return;
+        }
+
+        $formId = (int)($_POST['form_id'] ?? 0);
+        $password = $_POST['confirm_password'] ?? '';
+
+        if ($password !== '12345678') {
+            $this->json(['error' => 'Incorrect password.'], 403);
+            return;
+        }
+
+        if (!$formId) {
+            $this->json(['error' => 'Invalid form ID.'], 400);
+            return;
+        }
+
+        $this->formModel->deleteForm($formId);
+        logActivity(currentUser()['id'], 'form_deleted', 'form', $formId);
+
+        $this->json(['success' => true, 'message' => 'Form deleted permanently.']);
+    }
+
+    /**
+     * Get field options via AJAX
+     */
+    public function getFieldOptions(int $id): void
+    {
+        $options = $this->db->fetchAll(
+            "SELECT * FROM form_field_options WHERE field_id = ? ORDER BY display_order",
+            [$id]
+        );
+        $this->json(['success' => true, 'options' => $options]);
+    }
+
+    /**
+     * Save field options via AJAX
+     */
+    public function saveFieldOptions(int $id): void
+    {
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            $this->json(['error' => 'Invalid request.'], 405);
+            return;
+        }
+
+        $options = $_POST['options'] ?? [];
+        $this->formModel->saveFieldOptions($id, $options);
+        $this->json(['success' => true, 'message' => 'Options saved.']);
+    }
 }

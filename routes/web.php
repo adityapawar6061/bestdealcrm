@@ -40,16 +40,22 @@ $router->middleware(['AuthMiddleware'], function ($router) {
             // Lead Management
             $router->get('/leads', 'AdminController', 'leads');
             $router->get('/leads/data', 'AdminController', 'leadsAjax');
-            $router->get('/leads/{id}', 'AdminController', 'leadDetail');
             
-            // Lead Upload
+            // Lead Upload (must be before /leads/{id})
             $router->get('/leads/upload', 'AdminController', 'uploadLeads');
             $router->post('/leads/upload/process', 'AdminController', 'processUpload');
             $router->post('/leads/upload/mapping', 'AdminController', 'processMapping');
+            $router->get('/leads/template/create', 'AdminController', 'createTemplate');
+            $router->post('/leads/template/store', 'AdminController', 'storeTemplate');
+            $router->get('/leads/template/{id}', 'AdminController', 'downloadTemplate');
+            $router->get('/leads/templates', 'AdminController', 'listTemplates');
             
-            // Lead Assignment
+            // Lead Assignment (must be before /leads/{id})
             $router->get('/leads/assign', 'AdminController', 'assignLeads');
             $router->post('/leads/assign', 'AdminController', 'processAssignment');
+            
+            // Lead Detail (wildcard last)
+            $router->get('/leads/{id}', 'AdminController', 'leadDetail');
             
             // Admin Review 1
             $router->get('/review1', 'AdminController', 'review1');
@@ -60,6 +66,16 @@ $router->middleware(['AuthMiddleware'], function ($router) {
             $router->get('/review2', 'AdminController', 'review2');
             $router->get('/review2/{id}', 'AdminController', 'review2Detail');
             $router->post('/review2/process', 'AdminController', 'processReview2');
+            
+            // Admin Review 3 (Post-Login → Underwriting decision)
+            $router->get('/review3', 'AdminController', 'review3');
+            $router->get('/review3/{id}', 'AdminController', 'review3Detail');
+            $router->post('/review3/process', 'AdminController', 'processReview3');
+            
+            // Admin Review 4 (Underwriting → Dispatch decision)
+            $router->get('/review4', 'AdminController', 'review4');
+            $router->get('/review4/{id}', 'AdminController', 'review4Detail');
+            $router->post('/review4/process', 'AdminController', 'processReview4');
             
             // Roles & Permissions
             $router->get('/roles', 'AdminController', 'roles');
@@ -79,13 +95,10 @@ $router->middleware(['AuthMiddleware'], function ($router) {
             $router->post('/form-builder/add-field', 'FormBuilderController', 'addField');
             $router->post('/form-builder/field/{id}/delete', 'FormBuilderController', 'deleteField');
             
-            // Table Builder
-            $router->get('/table-builder', 'TableBuilderController', 'index');
-            $router->get('/table-builder/create', 'TableBuilderController', 'create');
-            $router->post('/table-builder/store', 'TableBuilderController', 'store');
-            $router->get('/table-builder/{id}/edit', 'TableBuilderController', 'edit');
-            $router->post('/table-builder/add-column', 'TableBuilderController', 'addColumn');
-            $router->post('/table-builder/column/{id}/delete', 'TableBuilderController', 'deleteColumn');
+            // Form Builder - Field Options
+            $router->post('/form-builder/field/{id}/options', 'FormBuilderController', 'getFieldOptions');
+            $router->post('/form-builder/field/{id}/options/save', 'FormBuilderController', 'saveFieldOptions');
+            $router->post('/form-builder/delete-with-password', 'FormBuilderController', 'deleteWithPassword');
             
             // Notifications
             $router->get('/notifications', 'AdminController', 'notifications');

@@ -92,9 +92,24 @@ class AdminController extends BaseController
 
     public function createUser(): void
     {
-        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+        try {
+            if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+                $this->json(['error' => 'Invalid request method.'], 405);
+                return;
+            }
+
             $data = $this->sanitize($_POST);
-            $errors = $this->validate($data, [
+
+            // Filter to only valid user fields
+            $allowedFields = ['name', 'email', 'username', 'password', 'mobile', 'role_id', 'team_leader_id'];
+            $filtered = [];
+            foreach ($allowedFields as $field) {
+                if (isset($data[$field])) {
+                    $filtered[$field] = $data[$field];
+                }
+            }
+
+            $errors = $this->validate($filtered, [
                 'name'     => 'required|max:255',
                 'email'    => 'required|email',
                 'username' => 'required|min:4|max:50',
@@ -110,17 +125,25 @@ class AdminController extends BaseController
             // Check unique username/email
             $existing = $this->db->fetchOne(
                 "SELECT id FROM users WHERE username = ? OR email = ?",
-                [$data['username'], $data['email']]
+                [$filtered['username'], $filtered['email']]
             );
             if ($existing) {
                 $this->json(['errors' => ['username' => 'Username or email already exists.']], 422);
                 return;
             }
 
-            $id = $this->userModel->create($data);
-            logActivity(currentUser()['id'], 'user_created', 'user', $id, null, $data['name']);
+            // Clean team_leader_id
+            if (empty($filtered['team_leader_id'])) {
+                unset($filtered['team_leader_id']);
+            }
+
+            $id = $this->userModel->create($filtered);
+            logActivity(currentUser()['id'], 'user_created', 'user', (int)$id, null, $filtered['name']);
 
             $this->json(['success' => true, 'message' => 'User created successfully.']);
+        } catch (\Exception $e) {
+            error_log('createUser error: ' . $e->getMessage());
+            $this->json(['error' => 'Server error: ' . $e->getMessage()], 500);
         }
     }
 
@@ -848,6 +871,210 @@ class AdminController extends BaseController
         header('Content-Type: ' . $doc['mime_type']);
         header('Content-Disposition: attachment; filename="' . $doc['original_name'] . '"');
         header('Content-Length: ' . $doc['file_size']);
+        readfile($filePath);
+        exit;
+    }
+
+    // ========== ADMIN REVIEW 3 (Post-Login → Underwriting) ==========
+
+    public function review3(): void
+    {
+        $user = currentUser();
+        $filters = [
+            'search' => $_GET['search'] ?? '',
+        ];
+        $leads = $this->leadModel->getAll($filters, (int)($_GET['page'] ?? 1), 25);
+        // Filter to POST_LOGIN stage
+        $leads['data'] = array_filter($leads['data'], function($l) {
+            return $l['workflow_stage'] === 'POST_LOGIN' || $l['workflow_stage'] === 'ADMIN_REVIEW_3';
+        });
+        $this->view('admin/review3', [
+            'title'   => 'Review 3 - Post Login Decision',
+            'leads'   => $leads,
+            'filters' => $filters,
+        ]);
+    }
+
+    public function review3Detail(int $id): void
+    {
+        $lead = $this->leadModel->findById($id);
+        if (!$lead) {
+            $this->redirect('/admin/review3', 'error', 'Lead not found.');
+            return;
+        }
+        $timeline = $this->leadModel->getTimeline($id);
+        $this->view('admin/review3_detail', [
+            'title'    => 'Review 3 - Lead #' . $id,
+            'lead'     => $lead,
+            'timeline' => $timeline,
+        ]);
+    }
+
+    public function processReview3(): void
+    {
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            $this->json(['error' => 'Invalid request.'], 405);
+            return;
+        }
+
+        $leadId = (int)($_POST['lead_id'] ?? 0);
+        $action = $_POST['action'] ?? '';
+        $remark = trim($_POST['admin_approval3_remark'] ?? '');
+        $user = currentUser();
+
+        if (!$leadId || !in_array($action, ['approve_to_underwriting', 'reject'])) {
+            $this->json(['error' => 'Invalid data.'], 400);
+            return;
+        }
+
+        $newStage = ($action === 'approve_to_underwriting') ? 'UNDERWRITING' : 'REJECTED';
+        $this->workflowModel->transition($leadId, 'POST_LOGIN', $newStage, $user['id'], $user['role_name'], $remark, 'admin_review_3');
+
+        $this->db->update('leads', [
+            'admin_approval3_remark' => $remark,
+            'updated_at' => date('Y-m-d H:i:s'),
+        ], 'id = ?', [$leadId]);
+
+        logActivity($user['id'], 'review3_' . $action, 'lead', $leadId, 'POST_LOGIN', $newStage, $remark);
+
+        $this->json(['success' => true, 'message' => 'Decision saved.']);
+    }
+
+    // ========== ADMIN REVIEW 4 (Underwriting → Dispatch) ==========
+
+    public function review4(): void
+    {
+        $user = currentUser();
+        $filters = [
+            'search' => $_GET['search'] ?? '',
+        ];
+        $leads = $this->leadModel->getAll($filters, (int)($_GET['page'] ?? 1), 25);
+        $leads['data'] = array_filter($leads['data'], function($l) {
+            return $l['workflow_stage'] === 'UNDERWRITING_APPROVED' || $l['workflow_stage'] === 'ADMIN_REVIEW_4';
+        });
+        $this->view('admin/review4', [
+            'title'   => 'Review 4 - Dispatch Decision',
+            'leads'   => $leads,
+            'filters' => $filters,
+        ]);
+    }
+
+    public function review4Detail(int $id): void
+    {
+        $lead = $this->leadModel->findById($id);
+        if (!$lead) {
+            $this->redirect('/admin/review4', 'error', 'Lead not found.');
+            return;
+        }
+        $timeline = $this->leadModel->getTimeline($id);
+        $this->view('admin/review4_detail', [
+            'title'    => 'Review 4 - Lead #' . $id,
+            'lead'     => $lead,
+            'timeline' => $timeline,
+        ]);
+    }
+
+    public function processReview4(): void
+    {
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            $this->json(['error' => 'Invalid request.'], 405);
+            return;
+        }
+
+        $leadId = (int)($_POST['lead_id'] ?? 0);
+        $action = $_POST['action'] ?? '';
+        $remark = trim($_POST['admin_approval4_remark'] ?? '');
+        $user = currentUser();
+
+        if (!$leadId || !in_array($action, ['approve_to_dispatch', 'reject'])) {
+            $this->json(['error' => 'Invalid data.'], 400);
+            return;
+        }
+
+        $newStage = ($action === 'approve_to_dispatch') ? 'DISPATCH' : 'REJECTED';
+        $this->workflowModel->transition($leadId, 'UNDERWRITING_APPROVED', $newStage, $user['id'], $user['role_name'], $remark, 'admin_review_4');
+
+        $this->db->update('leads', [
+            'admin_approval4_remark' => $remark,
+            'updated_at' => date('Y-m-d H:i:s'),
+        ], 'id = ?', [$leadId]);
+
+        logActivity($user['id'], 'review4_' . $action, 'lead', $leadId, 'UNDERWRITING_APPROVED', $newStage, $remark);
+
+        $this->json(['success' => true, 'message' => 'Decision saved.']);
+    }
+
+    // ========== LEAD TEMPLATES ==========
+
+    public function createTemplate(): void
+    {
+        $this->view('admin/create_template', [
+            'title' => 'Create Upload Template',
+        ]);
+    }
+
+    public function storeTemplate(): void
+    {
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            $this->json(['error' => 'Invalid request.'], 405);
+            return;
+        }
+
+        $name = trim($_POST['template_name'] ?? '');
+        $columns = $_POST['columns'] ?? [];
+
+        if (empty($name) || empty($columns)) {
+            $this->json(['error' => 'Template name and at least one column are required.'], 400);
+            return;
+        }
+
+        // Create CSV header
+        $header = array_map(function($col) { return trim($col); }, $columns);
+        $csv = implode(',', array_map(function($col) { return '"' . str_replace('"', '""', $col) . '"'; }, $header));
+
+        // Save template record
+        $templateId = $this->db->insert('lead_templates', [
+            'name'       => $name,
+            'columns'    => json_encode($header),
+            'created_by' => currentUser()['id'],
+            'created_at' => date('Y-m-d H:i:s'),
+        ]);
+
+        // Save CSV file
+        $templateDir = ROOT_PATH . '/public/uploads/templates';
+        if (!is_dir($templateDir)) mkdir($templateDir, 0755, true);
+        file_put_contents($templateDir . '/template_' . $templateId . '.csv', $csv);
+
+        logActivity(currentUser()['id'], 'template_created', 'template', (int)$templateId);
+
+        $this->json(['success' => true, 'message' => 'Template created.', 'id' => $templateId]);
+    }
+
+    public function listTemplates(): void
+    {
+        $templates = $this->db->fetchAll(
+            "SELECT t.*, u.name as created_by_name FROM lead_templates t LEFT JOIN users u ON t.created_by = u.id ORDER BY t.created_at DESC"
+        );
+        $this->json(['success' => true, 'templates' => $templates]);
+    }
+
+    public function downloadTemplate(int $id): void
+    {
+        $template = $this->db->fetchOne("SELECT * FROM lead_templates WHERE id = ?", [$id]);
+        if (!$template) {
+            $this->redirect('/admin/leads/upload', 'error', 'Template not found.');
+            return;
+        }
+
+        $filePath = ROOT_PATH . '/public/uploads/templates/template_' . $id . '.csv';
+        if (!file_exists($filePath)) {
+            $this->redirect('/admin/leads/upload', 'error', 'Template file not found.');
+            return;
+        }
+
+        header('Content-Type: text/csv');
+        header('Content-Disposition: attachment; filename="' . str_replace('"', '', $template['name']) . '.csv"');
+        header('Content-Length: ' . filesize($filePath));
         readfile($filePath);
         exit;
     }

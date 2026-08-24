@@ -55,7 +55,11 @@
             <i class="bi bi-arrow-right text-muted"></i>
             <span class="badge bg-info">POST_LOGIN</span>
             <i class="bi bi-arrow-right text-muted"></i>
+            <span class="badge bg-warning text-dark">ADMIN_REVIEW_3</span>
+            <i class="bi bi-arrow-right text-muted"></i>
             <span class="badge bg-primary">UNDERWRITING</span>
+            <i class="bi bi-arrow-right text-muted"></i>
+            <span class="badge bg-warning text-dark">ADMIN_REVIEW_4</span>
             <i class="bi bi-arrow-right text-muted"></i>
             <span class="badge bg-info">DISPATCH</span>
             <i class="bi bi-arrow-right text-muted"></i>
