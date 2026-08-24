@@ -1,200 +1,85 @@
-<div class="page-header d-flex justify-content-between align-items-center">
-    <h4><i class="bi bi-people me-2"></i>Manage Users</h4>
-    <button class="btn btn-primary" data-bs-toggle="modal" data-bs-target="#createUserModal">
-        <i class="bi bi-plus-lg me-1"></i> Add User
-    </button>
-</div>
-
-<!-- Filters -->
-<div class="table-container mb-4">
-    <form method="GET" class="row g-2 align-items-end">
-        <div class="col-md-3">
-            <input type="text" name="search" class="form-control form-control-sm" placeholder="Search name, email, username..." value="<?= htmlspecialchars($filters['search'] ?? '') ?>">
-        </div>
-        <div class="col-md-2">
-            <select name="role_id" class="form-select form-select-sm">
-                <option value="">All Roles</option>
-                <?php foreach ($roles as $role): ?>
-                    <option value="<?= $role['id'] ?>" <?= ($filters['role_id'] ?? '') == $role['id'] ? 'selected' : '' ?>>
-                        <?= htmlspecialchars($role['display_name']) ?>
-                    </option>
-                <?php endforeach; ?>
-            </select>
-        </div>
-        <div class="col-md-2">
-            <select name="status" class="form-select form-select-sm">
-                <option value="">All Status</option>
-                <option value="active" <?= ($filters['status'] ?? '') === 'active' ? 'selected' : '' ?>>Active</option>
-                <option value="inactive" <?= ($filters['status'] ?? '') === 'inactive' ? 'selected' : '' ?>>Inactive</option>
-            </select>
-        </div>
-        <div class="col-md-2">
-            <button type="submit" class="btn btn-sm btn-primary w-100"><i class="bi bi-search me-1"></i> Filter</button>
-        </div>
-    </form>
-</div>
-
-<!-- Users Table -->
-<div class="table-container">
-    <div class="table-responsive">
-        <table class="table table-hover align-middle mb-0">
-            <thead class="table-light">
-                <tr>
-                    <th>#</th>
-                    <th>Name</th>
-                    <th>Username</th>
-                    <th>Email</th>
-                    <th>Mobile</th>
-                    <th>Role</th>
-                    <th>Status</th>
-                    <th>Last Login</th>
-                    <th>Actions</th>
-                </tr>
-            </thead>
-            <tbody>
-                <?php if (empty($users['data'])): ?>
-                    <tr><td colspan="9" class="text-center py-4 text-muted">No users found.</td></tr>
-                <?php else: ?>
-                    <?php foreach ($users['data'] as $u): ?>
-                    <tr>
-                        <td><?= $u['id'] ?></td>
-                        <td><strong><?= htmlspecialchars($u['name']) ?></strong></td>
-                        <td><?= htmlspecialchars($u['username']) ?></td>
-                        <td><?= htmlspecialchars($u['email']) ?></td>
-                        <td><?= htmlspecialchars($u['mobile'] ?? '-') ?></td>
-                        <td><span class="badge bg-secondary"><?= ucfirst(str_replace('_', ' ', $u['role_name'] ?? '')) ?></span></td>
-                        <td>
-                            <span class="badge bg-<?= $u['status'] === 'active' ? 'success' : 'danger' ?>">
-                                <?= ucfirst($u['status']) ?>
-                            </span>
-                        </td>
-                        <td><small class="text-muted"><?= $u['last_login_at'] ? formatDate($u['last_login_at'], 'd M Y, h:i A') : 'Never' ?></small></td>
-                        <td>
-                            <div class="btn-group btn-group-sm">
-                                <button class="btn btn-outline-primary" onclick="editUser(<?= $u['id'] ?>, '<?= htmlspecialchars(addslashes($u['name'])) ?>', '<?= htmlspecialchars(addslashes($u['email'])) ?>', '<?= $u['mobile'] ?? '' ?>', <?= $u['role_id'] ?>, '<?= $u['team_leader_id'] ?? '' ?>)">
-                                    <i class="bi bi-pencil"></i>
-                                </button>
-                                <button class="btn btn-outline-<?= $u['status'] === 'active' ? 'warning' : 'success' ?>" onclick="toggleStatus(<?= $u['id'] ?>)">
-                                    <i class="bi bi-<?= $u['status'] === 'active' ? 'pause' : 'play' ?>"></i>
-                                </button>
-                                <button class="btn btn-outline-info" onclick="resetPassword(<?= $u['id'] ?>)">
-                                    <i class="bi bi-key"></i>
-                                </button>
-                            </div>
-                        </td>
-                    </tr>
-                    <?php endforeach; ?>
-                <?php endif; ?>
-            </tbody>
-        </table>
-    </div>
-    
-    <!-- Pagination -->
-    <?php if ($users['total_pages'] > 1): ?>
-    <nav class="mt-3">
-        <ul class="pagination pagination-sm justify-content-center mb-0">
-            <?php for ($i = 1; $i <= $users['total_pages']; $i++): ?>
-                <li class="page-item <?= $i == $users['current_page'] ? 'active' : '' ?>">
-                    <a class="page-link" href="?page=<?= $i ?>&search=<?= urlencode($filters['search'] ?? '') ?>&role_id=<?= $filters['role_id'] ?? '' ?>&status=<?= $filters['status'] ?? '' ?>"><?= $i ?></a>
-                </li>
-            <?php endfor; ?>
-        </ul>
-    </nav>
-    <?php endif; ?>
-</div>
-
-<!-- Create User Modal -->
-<div class="modal fade" id="createUserModal" tabindex="-1">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">Create User</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+<?php $user = currentUser(); ?>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Users - BestDeal CRM</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.2/font/bootstrap-icons.css" rel="stylesheet">
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', sans-serif; background: #f1f5f9; }
+        .sidebar { position: fixed; top: 0; left: 0; bottom: 0; width: 260px; background: #1e293b; color: #fff; overflow-y: auto; z-index: 1000; }
+        .sidebar .brand { padding: 20px; font-size: 1.2rem; font-weight: 700; border-bottom: 1px solid rgba(255,255,255,0.1); }
+        .sidebar .nav-link { color: #94a3b8; padding: 10px 20px; display: flex; align-items: center; gap: 10px; text-decoration: none; font-size: 0.9rem; }
+        .sidebar .nav-link:hover { color: #fff; background: rgba(255,255,255,0.05); }
+        .sidebar .nav-link.active { color: #fff; background: #3b82f6; border-radius: 0 25px 25px 0; margin-right: 10px; }
+        .sidebar .nav-section { padding: 15px 20px 5px; font-size: 0.75rem; text-transform: uppercase; color: #64748b; letter-spacing: 1px; }
+        .main-content { margin-left: 260px; min-height: 100vh; }
+        .topbar { height: 60px; background: #fff; border-bottom: 1px solid #e2e8f0; display: flex; align-items: center; justify-content: space-between; padding: 0 24px; position: sticky; top: 0; z-index: 999; }
+        .content-area { padding: 24px; }
+        .table-container { background: #fff; border-radius: 12px; padding: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+        .badge { padding: 4px 10px; border-radius: 20px; font-size: 0.75rem; }
+        @media (max-width: 768px) { .sidebar { display: none; } .main-content { margin-left: 0; } }
+    </style>
+</head>
+<body>
+    <aside class="sidebar">
+        <div class="brand"><i class="bi bi-building"></i> BestDeal CRM</div>
+        <nav class="mt-3">
+            <div class="nav-section">Main</div>
+            <a href="/bestdealcrm/admin/dashboard" class="nav-link"><i class="bi bi-speedometer2"></i> Dashboard</a>
+            <div class="nav-section">User Management</div>
+            <a href="/bestdealcrm/admin/users" class="nav-link active"><i class="bi bi-people"></i> Users</a>
+            <div class="nav-section">Lead Management</div>
+            <a href="/bestdealcrm/admin/leads" class="nav-link"><i class="bi bi-list-ul"></i> All Leads</a>
+            <a href="/bestdealcrm/admin/leads/upload" class="nav-link"><i class="bi bi-cloud-upload"></i> Upload Leads</a>
+            <a href="/bestdealcrm/admin/leads/assign" class="nav-link"><i class="bi bi-person-check"></i> Assign Leads</a>
+            <div class="nav-section">Workflow</div>
+            <a href="/bestdealcrm/admin/review1" class="nav-link"><i class="bi bi-clipboard-check"></i> Review Stage 1</a>
+            <a href="/bestdealcrm/admin/review2" class="nav-link"><i class="bi bi-clipboard2-check"></i> Review Stage 2</a>
+            <div class="nav-section">System</div>
+            <a href="/bestdealcrm/admin/notifications" class="nav-link"><i class="bi bi-bell"></i> Notifications</a>
+        </nav>
+    </aside>
+    <div class="main-content">
+        <header class="topbar">
+            <span class="text-muted">Manage Users</span>
+            <div class="d-flex align-items-center gap-3">
+                <span><?= htmlspecialchars($user['name'] ?? '') ?></span>
+                <a href="/bestdealcrm/logout" class="btn btn-sm btn-outline-danger">Logout</a>
             </div>
-            <form id="createUserForm" onsubmit="return createUser(event)">
-                <div class="modal-body">
-                    <div class="mb-3">
-                        <label class="form-label">Full Name *</label>
-                        <input type="text" name="name" class="form-control" required>
-                    </div>
-                    <div class="row">
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label">Email *</label>
-                            <input type="email" name="email" class="form-control" required>
-                        </div>
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label">Mobile</label>
-                            <input type="text" name="mobile" class="form-control">
-                        </div>
-                    </div>
-                    <div class="row">
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label">Username *</label>
-                            <input type="text" name="username" class="form-control" required minlength="4">
-                        </div>
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label">Password *</label>
-                            <input type="password" name="password" class="form-control" required minlength="6">
-                        </div>
-                    </div>
-                    <div class="row">
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label">Role *</label>
-                            <select name="role_id" class="form-select" required>
-                                <option value="">Select Role</option>
-                                <?php foreach ($roles as $role): ?>
-                                    <option value="<?= $role['id'] ?>"><?= htmlspecialchars($role['display_name']) ?></option>
+        </header>
+        <div class="content-area">
+            <h4 class="mb-4"><i class="bi bi-people me-2"></i>Manage Users</h4>
+            <div class="table-container">
+                <div class="table-responsive">
+                    <table class="table table-hover table-sm align-middle mb-0">
+                        <thead class="table-light">
+                            <tr><th>#</th><th>Name</th><th>Username</th><th>Email</th><th>Role</th><th>Status</th><th>Last Login</th></tr>
+                        </thead>
+                        <tbody>
+                            <?php if (empty($users)): ?>
+                                <tr><td colspan="7" class="text-center py-4 text-muted">No users found.</td></tr>
+                            <?php else: ?>
+                                <?php foreach ($users as $u): ?>
+                                <tr>
+                                    <td><?= $u['id'] ?></td>
+                                    <td><strong><?= htmlspecialchars($u['name']) ?></strong></td>
+                                    <td><?= htmlspecialchars($u['username']) ?></td>
+                                    <td><?= htmlspecialchars($u['email']) ?></td>
+                                    <td><span class="badge bg-secondary"><?= ucfirst(str_replace('_', ' ', $u['role_name'] ?? '')) ?></span></td>
+                                    <td><span class="badge bg-<?= $u['status'] === 'active' ? 'success' : 'danger' ?>"><?= ucfirst($u['status']) ?></span></td>
+                                    <td><small class="text-muted"><?= $u['last_login_at'] ? formatDate($u['last_login_at']) : 'Never' ?></small></td>
+                                </tr>
                                 <?php endforeach; ?>
-                            </select>
-                        </div>
-                        <div class="col-md-6 mb-3">
-                            <label class="form-label">Team Leader</label>
-                            <select name="team_leader_id" class="form-select">
-                                <option value="">None</option>
-                                <?php foreach ($teamLeaders as $tl): ?>
-                                    <option value="<?= $tl['id'] ?>"><?= htmlspecialchars($tl['name']) ?></option>
-                                <?php endforeach; ?>
-                            </select>
-                        </div>
-                    </div>
+                            <?php endif; ?>
+                        </tbody>
+                    </table>
                 </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="submit" class="btn btn-primary">Create User</button>
-                </div>
-            </form>
+            </div>
         </div>
     </div>
-</div>
-
-<script>
-async function createUser(e) {
-    e.preventDefault();
-    const form = e.target;
-    const data = new FormData(form);
-    const result = await ajaxPost('/bestdealcrm/admin/users/create', data);
-    if (result.success) {
-        location.reload();
-    } else if (result.errors) {
-        alert(Object.values(result.errors).join('\n'));
-    }
-}
-
-async function toggleStatus(userId) {
-    if (!confirm('Toggle user status?')) return;
-    const result = await ajaxPost('/bestdealcrm/admin/toggle-user-status', { user_id: userId });
-    if (result.success) location.reload();
-}
-
-async function resetPassword(userId) {
-    const pwd = prompt('Enter new password (min 6 characters):');
-    if (!pwd || pwd.length < 6) return;
-    const result = await ajaxPost('/bestdealcrm/admin/users/reset-password', { user_id: userId, new_password: pwd });
-    if (result.success) alert('Password reset successfully.');
-}
-
-function editUser(id, name, email, mobile, roleId, tlId) {
-    // Simple alert-based edit for now - can be enhanced with modal
-    alert('Edit functionality: User #' + id + ' - ' + name);
-}
-</script>
+</body>
+</html>
