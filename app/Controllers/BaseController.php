@@ -1,14 +1,11 @@
 <?php
 /**
- * Base Controller - Minimal version for debugging
+ * Base Controller
  */
-
-// Safely load Session if not already loaded
-if (!class_exists('Session') && !function_exists('isAuthenticated')) {
-    $sessionFile = dirname(__DIR__, 2) . '/Helpers/Session.php';
-    if (file_exists($sessionFile)) {
-        require_once $sessionFile;
-    }
+// Load Session using correct path: app/Controllers -> app/Helpers
+$sessionFile = dirname(__DIR__) . '/Helpers/Session.php';
+if (file_exists($sessionFile) && !class_exists('Session') && !function_exists('isAuthenticated')) {
+    require_once $sessionFile;
 }
 
 class BaseController
@@ -24,14 +21,12 @@ class BaseController
     {
         extract($data);
         ob_start();
-
         $fullPath = VIEWS_PATH . '/' . $viewPath . '.php';
         if (file_exists($fullPath)) {
             require $fullPath;
         } else {
             echo "<p>View not found: {$viewPath}</p>";
         }
-
         $content = ob_get_clean();
         require VIEWS_PATH . '/' . $layout . '.php';
     }
@@ -70,7 +65,6 @@ class BaseController
         foreach ($rules as $field => $ruleSet) {
             $value = $data[$field] ?? null;
             $rulesArray = is_string($ruleSet) ? explode('|', $ruleSet) : $ruleSet;
-
             foreach ($rulesArray as $rule) {
                 $params = [];
                 if (strpos($rule, ':') !== false) {
@@ -78,7 +72,6 @@ class BaseController
                     $params = explode(',', $paramStr);
                     $rule = $ruleName;
                 }
-
                 switch ($rule) {
                     case 'required':
                         if (empty($value) && $value !== '0' && $value !== 0) {
@@ -111,10 +104,8 @@ class BaseController
         $totalPages = max(1, ceil($total / $perPage));
         $currentPage = max(1, min($currentPage, $totalPages));
         $offset = ($currentPage - 1) * $perPage;
-
         $sql = "SELECT * FROM {$table} WHERE {$where} ORDER BY id DESC LIMIT {$perPage} OFFSET {$offset}";
         $data = $this->db->fetchAll($sql, $params);
-
         return [
             'data'         => $data,
             'total'        => $total,

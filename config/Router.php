@@ -149,7 +149,7 @@ class Router
         
         if (!class_exists($controllerClass)) {
             http_response_code(500);
-            die("Controller not found: {$route['controller']}");
+            throw new \RuntimeException("Controller not found: {$route['controller']}");
         }
 
         $controller = new $controllerClass();
@@ -157,7 +157,7 @@ class Router
 
         if (!method_exists($controller, $action)) {
             http_response_code(500);
-            die("Method not found: {$controllerClass}::{$action}");
+            throw new \RuntimeException("Method not found: {$controllerClass}::{$action}");
         }
 
         call_user_func_array([$controller, $action], $params);
