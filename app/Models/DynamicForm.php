@@ -3,7 +3,7 @@ namespace Models;
 
 class DynamicForm
 {
-    private Database $db;
+    private $db;
 
     public function __construct()
     {

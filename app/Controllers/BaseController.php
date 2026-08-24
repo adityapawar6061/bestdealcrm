@@ -1,11 +1,14 @@
 <?php
 /**
- * Base Controller
- * Common functionality for all controllers
+ * Base Controller - Minimal version for debugging
  */
 
-if (file_exists(ROOT_PATH . '/app/Helpers/Session.php') && !class_exists('Session')) {
-    require_once ROOT_PATH . '/app/Helpers/Session.php';
+// Safely load Session if not already loaded
+if (!class_exists('Session') && !function_exists('isAuthenticated')) {
+    $sessionFile = dirname(__DIR__, 2) . '/Helpers/Session.php';
+    if (file_exists($sessionFile)) {
+        require_once $sessionFile;
+    }
 }
 
 class BaseController
@@ -14,45 +17,26 @@ class BaseController
 
     public function __construct()
     {
-        $this->db = Database::getInstance();
+        $this->db = \Database::getInstance();
     }
 
-    /**
-     * Render a view with layout
-     */
-    protected function view(string $viewPath, array $data = [], string $layout = 'layouts/main'): void
+    protected function view($viewPath, $data = [], $layout = 'layouts/main')
     {
         extract($data);
         ob_start();
-        
+
         $fullPath = VIEWS_PATH . '/' . $viewPath . '.php';
         if (file_exists($fullPath)) {
             require $fullPath;
         } else {
             echo "<p>View not found: {$viewPath}</p>";
         }
-        
+
         $content = ob_get_clean();
-        
         require VIEWS_PATH . '/' . $layout . '.php';
     }
 
-    /**
-     * Render a partial view (no layout)
-     */
-    protected function partial(string $viewPath, array $data = []): void
-    {
-        extract($data);
-        $fullPath = VIEWS_PATH . '/' . $viewPath . '.php';
-        if (file_exists($fullPath)) {
-            require $fullPath;
-        }
-    }
-
-    /**
-     * Send JSON response
-     */
-    protected function json(mixed $data, int $statusCode = 200): void
+    protected function json($data, $statusCode = 200)
     {
         http_response_code($statusCode);
         header('Content-Type: application/json');
@@ -60,70 +44,41 @@ class BaseController
         exit;
     }
 
-    /**
-     * Redirect to URL
-     */
-    protected function redirect(string $url, string $flashType = '', string $flashMessage = ''): void
+    protected function redirect($url, $flashType = '', $flashMessage = '')
     {
-        if ($flashType && $flashMessage) {
+        if ($flashType && $flashMessage && function_exists('setFlash')) {
             setFlash($flashType, $flashMessage);
         }
         header("Location: {$url}");
         exit;
     }
 
-    /**
-     * Check if request is AJAX
-     */
-    protected function isAjax(): bool
+    protected function isAjax()
     {
-        return !empty($_SERVER['HTTP_X_REQUESTED_WITH']) && 
+        return !empty($_SERVER['HTTP_X_REQUESTED_WITH']) &&
                strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest';
     }
 
-    /**
-     * Get POST data with optional trimming
-     */
-    protected function input(string $key, $default = null): mixed
+    protected function input($key, $default = null)
     {
         return $_POST[$key] ?? $_GET[$key] ?? $default;
     }
 
-    /**
-     * Get multiple POST data
-     */
-    protected function inputs(array $keys): array
-    {
-        $data = [];
-        foreach ($keys as $key => $default) {
-            if (is_int($key)) {
-                $data[$default] = $this->input($default);
-            } else {
-                $data[$key] = $this->input($key, $default);
-            }
-        }
-        return $data;
-    }
-
-    /**
-     * Validate required fields
-     */
-    protected function validate(array $data, array $rules): array
+    protected function validate($data, $rules)
     {
         $errors = [];
-        
         foreach ($rules as $field => $ruleSet) {
             $value = $data[$field] ?? null;
             $rulesArray = is_string($ruleSet) ? explode('|', $ruleSet) : $ruleSet;
-            
+
             foreach ($rulesArray as $rule) {
                 $params = [];
-                if (str_contains($rule, ':')) {
-                    [$ruleName, $paramStr] = explode(':', $rule, 2);
+                if (strpos($rule, ':') !== false) {
+                    list($ruleName, $paramStr) = explode(':', $rule, 2);
                     $params = explode(',', $paramStr);
                     $rule = $ruleName;
                 }
-                
+
                 switch ($rule) {
                     case 'required':
                         if (empty($value) && $value !== '0' && $value !== 0) {
@@ -135,32 +90,13 @@ class BaseController
                             $errors[$field] = 'Invalid email address.';
                         }
                         break;
-                    case 'min':
-                        if (!empty($value) && strlen($value) < (int)$params[0]) {
-                            $errors[$field] = "Minimum {$params[0]} characters required.";
-                        }
-                        break;
-                    case 'max':
-                        if (!empty($value) && strlen($value) > (int)$params[0]) {
-                            $errors[$field] = "Maximum {$params[0]} characters allowed.";
-                        }
-                        break;
-                    case 'numeric':
-                        if (!empty($value) && !is_numeric($value)) {
-                            $errors[$field] = 'Must be a number.';
-                        }
-                        break;
                 }
             }
         }
-        
         return $errors;
     }
 
-    /**
-     * Sanitize input data
-     */
-    protected function sanitize(array $data): array
+    protected function sanitize($data)
     {
         $sanitized = [];
         foreach ($data as $key => $value) {
@@ -169,19 +105,16 @@ class BaseController
         return $sanitized;
     }
 
-    /**
-     * Pagination helper
-     */
-    protected function paginate(string $table, string $where = '1=1', array $params = [], int $perPage = 25, int $currentPage = 1): array
+    protected function paginate($table, $where = '1=1', $params = [], $perPage = 25, $currentPage = 1)
     {
         $total = $this->db->count($table, $where, $params);
         $totalPages = max(1, ceil($total / $perPage));
         $currentPage = max(1, min($currentPage, $totalPages));
         $offset = ($currentPage - 1) * $perPage;
-        
+
         $sql = "SELECT * FROM {$table} WHERE {$where} ORDER BY id DESC LIMIT {$perPage} OFFSET {$offset}";
         $data = $this->db->fetchAll($sql, $params);
-        
+
         return [
             'data'         => $data,
             'total'        => $total,

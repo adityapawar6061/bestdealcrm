@@ -3,7 +3,7 @@ namespace Models;
 
 class User
 {
-    private Database $db;
+    private $db;
 
     public function __construct()
     {

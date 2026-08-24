@@ -3,7 +3,7 @@ namespace Models;
 
 class Role
 {
-    private Database $db;
+    private $db;
 
     public function __construct()
     {
