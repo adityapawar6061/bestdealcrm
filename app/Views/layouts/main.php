@@ -10,30 +10,82 @@
     <style>
         :root {
             --sidebar-width: 260px;
+            --sidebar-collapsed: 60px;
             --sidebar-bg: #1e293b;
             --sidebar-active: #3b82f6;
             --topbar-height: 60px;
         }
-        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f1f5f9; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f1f5f9; overflow-x: hidden; }
+
+        /* ===== SIDEBAR ===== */
         .sidebar {
             position: fixed; top: 0; left: 0; bottom: 0; width: var(--sidebar-width);
-            background: var(--sidebar-bg); color: #fff; overflow-y: auto; z-index: 1000;
-            transition: transform 0.3s ease;
+            background: var(--sidebar-bg); color: #fff; overflow-y: auto; overflow-x: hidden;
+            z-index: 1000; transition: width 0.3s ease;
         }
-        .sidebar .brand { padding: 20px; font-size: 1.25rem; font-weight: 700; border-bottom: 1px solid rgba(255,255,255,0.1); }
+        .sidebar .brand {
+            padding: 18px 16px; font-size: 1.1rem; font-weight: 700; border-bottom: 1px solid rgba(255,255,255,0.1);
+            white-space: nowrap; display: flex; align-items: center; gap: 10px;
+            transition: padding 0.3s ease;
+        }
+        .sidebar .brand .brand-text { transition: opacity 0.2s ease; }
         .sidebar .nav-link {
-            color: #94a3b8; padding: 10px 20px; display: flex; align-items: center; gap: 10px;
-            text-decoration: none; font-size: 0.9rem; transition: all 0.2s;
+            color: #94a3b8; padding: 10px 16px; display: flex; align-items: center; gap: 10px;
+            text-decoration: none; font-size: 0.85rem; transition: all 0.2s;
+            white-space: nowrap; overflow: hidden;
         }
         .sidebar .nav-link:hover { color: #fff; background: rgba(255,255,255,0.05); }
         .sidebar .nav-link.active { color: #fff; background: var(--sidebar-active); border-radius: 0 25px 25px 0; margin-right: 10px; }
-        .sidebar .nav-section { padding: 15px 20px 5px; font-size: 0.75rem; text-transform: uppercase; color: #64748b; letter-spacing: 1px; }
-        .main-content { margin-left: var(--sidebar-width); min-height: 100vh; }
+        .sidebar .nav-link i { min-width: 20px; text-align: center; font-size: 1rem; flex-shrink: 0; }
+        .sidebar .nav-link .nav-text { transition: opacity 0.2s ease; }
+        .sidebar .nav-section {
+            padding: 14px 16px 5px; font-size: 0.7rem; text-transform: uppercase;
+            color: #64748b; letter-spacing: 1px;
+            white-space: nowrap; overflow: hidden; transition: opacity 0.2s ease;
+        }
+
+        /* ===== COLLAPSED STATE ===== */
+        body.sidebar-collapsed .sidebar { width: var(--sidebar-collapsed); }
+        body.sidebar-collapsed .sidebar .brand { padding: 18px 0; justify-content: center; }
+        body.sidebar-collapsed .sidebar .brand .brand-text,
+        body.sidebar-collapsed .sidebar .nav-link .nav-text,
+        body.sidebar-collapsed .sidebar .nav-section { opacity: 0; width: 0; overflow: hidden; padding: 0; margin: 0; height: 0; }
+        body.sidebar-collapsed .sidebar .nav-link { justify-content: center; padding: 10px 0; }
+        body.sidebar-collapsed .sidebar .nav-section { display: none; }
+        body.sidebar-collapsed .main-content { margin-left: var(--sidebar-collapsed); }
+
+        /* ===== HOVER EXPAND ===== */
+        body.sidebar-collapsed .sidebar:hover,
+        body.sidebar-hovered .sidebar { width: var(--sidebar-width); }
+        body.sidebar-collapsed .sidebar:hover .brand,
+        body.sidebar-hovered .sidebar .brand { padding: 18px 16px; }
+        body.sidebar-collapsed .sidebar:hover .brand .brand-text,
+        body.sidebar-collapsed .sidebar:hover .nav-link .nav-text,
+        body.sidebar-collapsed .sidebar:hover .nav-section,
+        body.sidebar-hovered .sidebar .brand .brand-text,
+        body.sidebar-hovered .sidebar .nav-link .nav-text,
+        body.sidebar-hovered .sidebar .nav-section { opacity: 1; width: auto; height: auto; padding: inherit; }
+        body.sidebar-collapsed .sidebar:hover .nav-link,
+        body.sidebar-hovered .sidebar .nav-link { justify-content: flex-start; padding: 10px 16px; }
+        body.sidebar-collapsed .sidebar:hover .nav-section,
+        body.sidebar-hovered .sidebar .nav-section { display: block; padding: 14px 16px 5px; }
+        body.sidebar-hovered .main-content { margin-left: var(--sidebar-width); }
+
+        /* ===== MAIN CONTENT ===== */
+        .main-content {
+            margin-left: var(--sidebar-width); min-height: 100vh;
+            transition: margin-left 0.3s ease;
+        }
         .topbar {
             height: var(--topbar-height); background: #fff; border-bottom: 1px solid #e2e8f0;
             display: flex; align-items: center; justify-content: space-between; padding: 0 24px;
             position: sticky; top: 0; z-index: 999;
         }
+        .sidebar-toggle {
+            background: none; border: 1px solid #e2e8f0; border-radius: 6px;
+            padding: 4px 8px; cursor: pointer; color: #64748b; transition: all 0.2s;
+        }
+        .sidebar-toggle:hover { background: #f1f5f9; color: #1e293b; }
         .content-area { padding: 24px; }
         .stat-card {
             background: #fff; border-radius: 12px; padding: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.08);
@@ -47,10 +99,25 @@
         .page-header { margin-bottom: 24px; }
         .page-header h4 { font-weight: 700; margin: 0; }
         .notification-badge { position: absolute; top: -5px; right: -5px; }
+
+        /* ===== TOOLTIP for collapsed icons ===== */
+        body.sidebar-collapsed .sidebar .nav-link { position: relative; }
+        body.sidebar-collapsed .sidebar .nav-link:hover::after {
+            content: attr(data-tip); position: absolute; left: calc(var(--sidebar-collapsed) + 6px);
+            top: 50%; transform: translateY(-50%); background: #334155; color: #fff;
+            padding: 4px 10px; border-radius: 6px; font-size: 0.75rem; white-space: nowrap;
+            z-index: 9999; pointer-events: none;
+        }
+
         @media (max-width: 768px) {
-            .sidebar { transform: translateX(-100%); }
+            .sidebar { transform: translateX(-100%); width: var(--sidebar-width) !important; }
             .sidebar.show { transform: translateX(0); }
-            .main-content { margin-left: 0; }
+            .sidebar.show .brand .brand-text,
+            .sidebar.show .nav-link .nav-text,
+            .sidebar.show .nav-section { opacity: 1; width: auto; height: auto; }
+            .sidebar.show .nav-link { justify-content: flex-start; padding: 10px 16px; }
+            .sidebar.show .nav-section { display: block; }
+            .main-content { margin-left: 0 !important; }
         }
     </style>
 </head>
@@ -194,8 +261,8 @@
         <!-- Topbar -->
         <header class="topbar">
             <div class="d-flex align-items-center">
-                <button class="btn btn-sm btn-outline-secondary d-md-none me-2" onclick="document.getElementById('sidebar').classList.toggle('show')">
-                    <i class="bi bi-list"></i>
+                <button class="btn btn-sm sidebar-toggle me-3" onclick="toggleSidebar()" title="Toggle sidebar">
+                    <i class="bi bi-list fs-5"></i>
                 </button>
                 <span class="text-muted"><?= htmlspecialchars($title ?? '') ?></span>
             </div>
@@ -327,6 +394,17 @@
             }
         }
 
+        // Sidebar toggle
+        function toggleSidebar() {
+            document.body.classList.toggle('sidebar-collapsed');
+            localStorage.setItem('sidebar_collapsed', document.body.classList.contains('sidebar-collapsed') ? '1' : '0');
+        }
+
+        // Restore sidebar state on load
+        if (localStorage.getItem('sidebar_collapsed') === '1') {
+            document.body.classList.add('sidebar-collapsed');
+        }
+
         // Close sidebar on mobile when clicking outside
         document.addEventListener('click', function(e) {
             var sidebar = document.getElementById('sidebar');
@@ -334,6 +412,31 @@
                 sidebar.classList.remove('show');
             }
         });
+
+        // Add tooltip text to nav links for collapsed mode
+        document.querySelectorAll('.sidebar .nav-link').forEach(function(link) {
+            var text = link.textContent.trim();
+            link.setAttribute('data-tip', text);
+        });
+
+        // Sidebar hover expand/collapse
+        var sidebarEl = document.getElementById('sidebar');
+        var hoverTimeout = null;
+        if (sidebarEl) {
+            sidebarEl.addEventListener('mouseenter', function() {
+                if (document.body.classList.contains('sidebar-collapsed')) {
+                    clearTimeout(hoverTimeout);
+                    document.body.classList.add('sidebar-hovered');
+                }
+            });
+            sidebarEl.addEventListener('mouseleave', function() {
+                if (document.body.classList.contains('sidebar-collapsed')) {
+                    hoverTimeout = setTimeout(function() {
+                        document.body.classList.remove('sidebar-hovered');
+                    }, 200);
+                }
+            });
+        }
     </script>
     <script src="/bestdealcrm/public/assets/js/app.js"></script>
 </body>
