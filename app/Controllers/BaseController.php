@@ -42,6 +42,11 @@ class BaseController
         if ($flashType && $flashMessage && function_exists('setFlash')) {
             setFlash($flashType, $flashMessage);
         }
+        // Prepend BASE_URL if not already present
+        $baseUrl = defined('BASE_URL') ? BASE_URL : '';
+        if ($baseUrl && strpos($url, $baseUrl) !== 0 && $url[0] === '/') {
+            $url = $baseUrl . $url;
+        }
         header("Location: {$url}");
         exit;
     }

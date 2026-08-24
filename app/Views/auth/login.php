@@ -78,7 +78,7 @@
                 </div>
             <?php endif; ?>
             
-            <form method="POST" action="/bestdealcrm/login">
+            <form method="POST" action="<?= defined('BASE_URL') ? BASE_URL : '' ?>/login">
                 <?= csrfField() ?>
                 <div class="mb-3">
                     <label class="form-label text-muted small">Username or Email</label>

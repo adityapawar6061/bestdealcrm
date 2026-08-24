@@ -108,8 +108,7 @@ class AuthController extends BaseController
         }
 
         clearAuthSession();
-        header('Location: /login');
-        exit;
+        $this->redirect('/login');
     }
 
     /**

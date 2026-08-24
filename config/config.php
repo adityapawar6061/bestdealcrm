@@ -68,3 +68,9 @@ define('ROUTES_PATH', ROOT_PATH . '/routes');
 define('VIEWS_PATH', APP_PATH . '/Views');
 define('STORAGE_PATH', ROOT_PATH . '/storage');
 define('UPLOAD_PATH', ROOT_PATH . '/' . env('UPLOAD_PATH', 'public/uploads'));
+
+// Base URL for the application (strip public/ since we serve from root)
+// Detect automatically: /bestdealcrm if installed in a subdirectory
+$scriptDir = dirname($_SERVER['SCRIPT_NAME']);
+define('BASE_URL', rtrim($scriptDir, '/'));
+define('ASSETS_URL', BASE_URL . '/app/Views/assets');
