@@ -1,0 +1,705 @@
+<?php
+namespace Controllers;
+
+class AdminController extends BaseController
+{
+    private \Models\User $userModel;
+    private \Models\Lead $leadModel;
+    private \Models\Workflow $workflowModel;
+    private \Models\DynamicForm $formModel;
+
+    public function __construct()
+    {
+        parent::__construct();
+        $this->userModel = new \Models\User();
+        $this->leadModel = new \Models\Lead();
+        $this->workflowModel = new \Models\Workflow();
+        $this->formModel = new \Models\DynamicForm();
+    }
+
+    // ========== DASHBOARD ==========
+
+    public function dashboard(): void
+    {
+        $user = currentUser();
+
+        // Get lead stats by stage
+        $stats = [
+            'total_leads'       => $this->db->count('leads'),
+            'unassigned'        => $this->db->count('leads', 'assigned_to IS NULL'),
+            'assigned'          => $this->db->count('leads', 'assigned_to IS NOT NULL'),
+            'agent_draft'       => $this->db->count('leads', 'workflow_stage = ?', ['AGENT_DRAFT']),
+            'pending_review_1'  => $this->db->count('leads', 'workflow_stage = ?', ['ADMIN_REVIEW_1']),
+            'login_pending'     => $this->db->count('leads', 'workflow_stage = ?', ['LOGIN_AGENT_ASSIGNED']),
+            'login_draft'       => $this->db->count('leads', 'workflow_stage = ?', ['LOGIN_AGENT_DRAFT']),
+            'pending_review_2'  => $this->db->count('leads', 'workflow_stage = ?', ['ADMIN_REVIEW_2']),
+            'approved'          => $this->db->count('leads', 'workflow_stage = ?', ['LOGIN_APPROVED']),
+            'rejected'          => $this->db->count('leads', 'workflow_stage = ?', ['REJECTED']),
+            'underwriting'      => $this->db->count('leads', 'workflow_stage = ?', ['UNDERWRITING']),
+            'dispatch'          => $this->db->count('leads', 'workflow_stage = ?', ['DISPATCH']),
+            'completed'         => $this->db->count('leads', 'workflow_stage = ?', ['COMPLETED']),
+            'total_users'       => $this->db->count('users', "status = 'active'"),
+            'total_agents'      => $this->db->count('users', "role_id = (SELECT id FROM roles WHERE name = 'agent') AND status = 'active'"),
+        ];
+
+        // Recent activity
+        $recentLeads = $this->db->fetchAll(
+            "SELECT l.*, u.name as assigned_to_name 
+             FROM leads l 
+             LEFT JOIN users u ON l.assigned_to = u.id 
+             ORDER BY l.created_at DESC LIMIT 10"
+        );
+
+        $recentActivity = $this->db->fetchAll(
+            "SELECT al.*, u.name as user_name 
+             FROM activity_logs al 
+             LEFT JOIN users u ON al.user_id = u.id 
+             ORDER BY al.created_at DESC LIMIT 15"
+        );
+
+        $this->view('admin/dashboard', [
+            'title'          => 'Admin Dashboard',
+            'stats'          => $stats,
+            'recentLeads'    => $recentLeads,
+            'recentActivity' => $recentActivity,
+        ]);
+    }
+
+    // ========== USER MANAGEMENT ==========
+
+    public function users(): void
+    {
+        $filters = [
+            'search'          => $_GET['search'] ?? '',
+            'role_id'         => $_GET['role_id'] ?? '',
+            'status'          => $_GET['status'] ?? '',
+            'team_leader_id'  => $_GET['team_leader_id'] ?? '',
+        ];
+        $page = (int)($_GET['page'] ?? 1);
+
+        $users = $this->userModel->getAll($filters, $page);
+        $roles = $this->db->fetchAll("SELECT * FROM roles ORDER BY name");
+        $teamLeaders = $this->userModel->getTeamLeaders();
+
+        $this->view('admin/users', [
+            'title'       => 'Manage Users',
+            'users'       => $users,
+            'roles'       => $roles,
+            'teamLeaders' => $teamLeaders,
+            'filters'     => $filters,
+        ]);
+    }
+
+    public function createUser(): void
+    {
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            $data = $this->sanitize($_POST);
+            $errors = $this->validate($data, [
+                'name'     => 'required|max:255',
+                'email'    => 'required|email',
+                'username' => 'required|min:4|max:50',
+                'password' => 'required|min:6',
+                'role_id'  => 'required',
+            ]);
+
+            if (!empty($errors)) {
+                $this->json(['errors' => $errors], 422);
+                return;
+            }
+
+            // Check unique username/email
+            $existing = $this->db->fetchOne(
+                "SELECT id FROM users WHERE username = ? OR email = ?",
+                [$data['username'], $data['email']]
+            );
+            if ($existing) {
+                $this->json(['errors' => ['username' => 'Username or email already exists.']], 422);
+                return;
+            }
+
+            $id = $this->userModel->create($data);
+            logActivity(currentUser()['id'], 'user_created', 'user', $id, null, $data['name']);
+
+            $this->json(['success' => true, 'message' => 'User created successfully.']);
+        }
+    }
+
+    public function updateUser(): void
+    {
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            $id = (int)($_POST['user_id'] ?? 0);
+            if (!$id) {
+                $this->json(['error' => 'Invalid user ID.'], 400);
+                return;
+            }
+
+            $data = $this->sanitize($_POST);
+            $errors = $this->validate($data, [
+                'name'     => 'required',
+                'email'    => 'required|email',
+                'role_id'  => 'required',
+            ]);
+
+            if (!empty($errors)) {
+                $this->json(['errors' => $errors], 422);
+                return;
+            }
+
+            $updateData = [
+                'name'           => $data['name'],
+                'email'          => $data['email'],
+                'mobile'         => $data['mobile'] ?? null,
+                'role_id'        => $data['role_id'],
+                'team_leader_id' => $data['team_leader_id'] ?: null,
+            ];
+
+            $this->userModel->update($id, $updateData);
+            logActivity(currentUser()['id'], 'user_updated', 'user', $id);
+
+            $this->json(['success' => true, 'message' => 'User updated successfully.']);
+        }
+    }
+
+    public function toggleUserStatus(): void
+    {
+        $id = (int)($_POST['user_id'] ?? 0);
+        if ($id) {
+            $this->userModel->toggleStatus($id);
+            logActivity(currentUser()['id'], 'user_status_changed', 'user', $id);
+            $this->json(['success' => true, 'message' => 'Status updated.']);
+        }
+    }
+
+    public function resetUserPassword(): void
+    {
+        $id = (int)($_POST['user_id'] ?? 0);
+        $password = $_POST['new_password'] ?? '';
+        
+        if ($id && strlen($password) >= 6) {
+            $this->userModel->resetPassword($id, $password);
+            logActivity(currentUser()['id'], 'password_reset', 'user', $id);
+            $this->json(['success' => true, 'message' => 'Password reset successfully.']);
+        } else {
+            $this->json(['error' => 'Invalid data.'], 400);
+        }
+    }
+
+    public function userProfile(int $id): void
+    {
+        $user = $this->userModel->findById($id);
+        $loginHistory = $this->userModel->getLoginHistory($id);
+
+        $this->view('admin/user_profile', [
+            'title'         => 'User Profile',
+            'profileUser'   => $user,
+            'loginHistory'  => $loginHistory,
+        ]);
+    }
+
+    // ========== LEAD MANAGEMENT ==========
+
+    public function leads(): void
+    {
+        $filters = [
+            'search'         => $_GET['search'] ?? '',
+            'workflow_stage' => $_GET['workflow_stage'] ?? '',
+            'assigned_to'    => $_GET['assigned_to'] ?? '',
+            'bank_name'      => $_GET['bank_name'] ?? '',
+        ];
+        $page = (int)($_GET['page'] ?? 1);
+
+        $leads = $this->leadModel->getAll($filters, $page);
+        $agents = $this->userModel->getAgents();
+
+        $this->view('admin/leads', [
+            'title'  => 'All Leads',
+            'leads'  => $leads,
+            'agents' => $agents,
+            'filters'=> $filters,
+        ]);
+    }
+
+    public function leadDetail(int $id): void
+    {
+        $lead = $this->leadModel->findById($id);
+        if (!$lead) {
+            $this->redirect('/admin/leads', 'error', 'Lead not found.');
+            return;
+        }
+
+        $timeline = $this->leadModel->getTimeline($id);
+        $assignments = $this->leadModel->getAssignmentHistory($id);
+        $submissions = $this->formModel->getSubmissionsForLead($id);
+        $documents = $this->db->fetchAll(
+            "SELECT * FROM documents WHERE lead_id = ? ORDER BY created_at DESC",
+            [$id]
+        );
+
+        $this->view('admin/lead_detail', [
+            'title'       => 'Lead #' . $id,
+            'lead'        => $lead,
+            'timeline'    => $timeline,
+            'assignments' => $assignments,
+            'submissions' => $submissions,
+            'documents'   => $documents,
+        ]);
+    }
+
+    // ========== LEAD UPLOAD ==========
+
+    public function uploadLeads(): void
+    {
+        $this->view('admin/upload_leads', [
+            'title' => 'Upload Leads',
+        ]);
+    }
+
+    public function processUpload(): void
+    {
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            $this->json(['error' => 'Invalid request.'], 405);
+            return;
+        }
+
+        if (!isset($_FILES['lead_file'])) {
+            $this->json(['error' => 'No file uploaded.'], 400);
+            return;
+        }
+
+        $file = $_FILES['lead_file'];
+        $ext = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
+
+        if (!in_array($ext, ['csv', 'xlsx'])) {
+            $this->json(['error' => 'Only CSV and XLSX files are allowed.'], 400);
+            return;
+        }
+
+        // Save upload record
+        $uploadId = $this->db->insert('lead_uploads', [
+            'filename'     => $file['name'],
+            'uploaded_by'  => currentUser()['id'],
+            'status'       => 'processing',
+            'created_at'   => date('Y-m-d H:i:s'),
+        ]);
+
+        // Read file and parse
+        $filePath = $file['tmp_name'];
+        $rows = [];
+        
+        if ($ext === 'csv') {
+            if (($handle = fopen($filePath, 'r')) !== false) {
+                $headers = fgetcsv($handle);
+                while (($row = fgetcsv($handle)) !== false) {
+                    if (count($row) === count($headers)) {
+                        $rows[] = array_combine($headers, $row);
+                    }
+                }
+                fclose($handle);
+            }
+        } elseif ($ext === 'xlsx') {
+            // Basic XLSX reading - for production use PhpSpreadsheet
+            $this->json(['error' => 'XLSX support requires PhpSpreadsheet library. Please upload CSV.'], 400);
+            return;
+        }
+
+        if (empty($rows)) {
+            $this->db->update('lead_uploads', ['status' => 'empty'], 'id = ?', [$uploadId]);
+            $this->json(['error' => 'No data found in file.'], 400);
+            return;
+        }
+
+        // Return columns for mapping
+        $columns = array_keys($rows[0]);
+        $_SESSION['upload_rows'] = $rows;
+        $_SESSION['upload_id'] = $uploadId;
+
+        $this->json([
+            'success' => true,
+            'columns' => $columns,
+            'sample'  => array_slice($rows, 0, 5),
+            'total'   => count($rows),
+            'upload_id' => $uploadId,
+        ]);
+    }
+
+    public function processMapping(): void
+    {
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            $this->json(['error' => 'Invalid request.'], 405);
+            return;
+        }
+
+        $mapping = $_POST['mapping'] ?? [];
+        $uploadId = $_SESSION['upload_id'] ?? null;
+        $rows = $_SESSION['upload_rows'] ?? [];
+
+        if (empty($rows) || empty($mapping)) {
+            $this->json(['error' => 'Invalid mapping data.'], 400);
+            return;
+        }
+
+        $importedCount = 0;
+        $skippedCount = 0;
+        $errors = [];
+
+        $this->db->beginTransaction();
+        try {
+            foreach ($rows as $index => $row) {
+                $leadData = [];
+                foreach ($mapping as $csvColumn => $dbField) {
+                    if (!empty($dbField) && isset($row[$csvColumn])) {
+                        $leadData[$dbField] = $row[$csvColumn];
+                    }
+                }
+
+                // Check duplicate mobile
+                if (!empty($leadData['mobile_number'])) {
+                    $existing = $this->leadModel->checkDuplicateMobile($leadData['mobile_number']);
+                    if ($existing) {
+                        $skippedCount++;
+                        $errors[] = "Row " . ($index + 2) . ": Duplicate mobile ({$leadData['mobile_number']})";
+                        continue;
+                    }
+                }
+
+                $this->leadModel->create($leadData);
+                $importedCount++;
+            }
+
+            $this->db->commit();
+
+            // Update upload record
+            if ($uploadId) {
+                $this->db->update('lead_uploads', [
+                    'status'       => 'completed',
+                    'total_rows'   => count($rows),
+                    'imported'     => $importedCount,
+                    'skipped'      => $skippedCount,
+                    'completed_at' => date('Y-m-d H:i:s'),
+                ], 'id = ?', [$uploadId]);
+            }
+
+            unset($_SESSION['upload_rows'], $_SESSION['upload_id']);
+
+            logActivity(currentUser()['id'], 'leads_uploaded', 'lead', null, null, 
+                json_encode(['imported' => $importedCount, 'skipped' => $skippedCount]));
+
+            $this->json([
+                'success'    => true,
+                'imported'   => $importedCount,
+                'skipped'    => $skippedCount,
+                'errors'     => array_slice($errors, 0, 20),
+                'message'    => "{$importedCount} leads imported. {$skippedCount} skipped.",
+            ]);
+
+        } catch (\Exception $e) {
+            $this->db->rollback();
+            error_log("Upload processing error: " . $e->getMessage());
+            $this->json(['error' => 'Failed to process upload.'], 500);
+        }
+    }
+
+    // ========== LEAD ASSIGNMENT ==========
+
+    public function assignLeads(): void
+    {
+        $this->view('admin/assign_leads', [
+            'title'  => 'Assign Leads',
+            'agents' => $this->userModel->getAgents(),
+            'leads'  => $this->leadModel->getAll(['workflow_stage' => 'LEAD_UPLOADED'], 1, 100),
+        ]);
+    }
+
+    public function processAssignment(): void
+    {
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            $this->json(['error' => 'Invalid request.'], 405);
+            return;
+        }
+
+        $leadIds = $_POST['lead_ids'] ?? [];
+        $assignedTo = (int)($_POST['assigned_to'] ?? 0);
+
+        if (empty($leadIds) || !$assignedTo) {
+            $this->json(['error' => 'Please select leads and an agent.'], 400);
+            return;
+        }
+
+        $count = 0;
+        foreach ($leadIds as $leadId) {
+            $this->leadModel->assign((int)$leadId, $assignedTo);
+            $count++;
+        }
+
+        logActivity(currentUser()['id'], 'leads_assigned', 'lead', null, null, 
+            json_encode(['count' => $count, 'assigned_to' => $assignedTo]));
+
+        $this->json(['success' => true, 'message' => "{$count} leads assigned successfully."]);
+    }
+
+    // ========== ADMIN REVIEW 1 ==========
+
+    public function review1(): void
+    {
+        $leads = $this->workflowModel->getPendingApprovals('ADMIN_REVIEW_1');
+
+        $this->view('admin/review1', [
+            'title'  => 'Admin Review (Stage 1)',
+            'leads'  => $leads,
+        ]);
+    }
+
+    public function review1Detail(int $id): void
+    {
+        $lead = $this->leadModel->findById($id);
+        $submissions = $this->formModel->getSubmissionsForLead($id);
+        $timeline = $this->leadModel->getTimeline($id);
+        $loginAgents = $this->userModel->getLoginAgents();
+
+        $this->view('admin/review1_detail', [
+            'title'       => 'Review Lead #' . $id,
+            'lead'        => $lead,
+            'submissions' => $submissions,
+            'timeline'    => $timeline,
+            'loginAgents' => $loginAgents,
+        ]);
+    }
+
+    public function processReview1(): void
+    {
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            $this->json(['error' => 'Invalid request.'], 405);
+            return;
+        }
+
+        $leadId = (int)($_POST['lead_id'] ?? 0);
+        $action = $_POST['action'] ?? '';
+        $remark = $_POST['admin_approval1_remark'] ?? '';
+        $assignedTo = (int)($_POST['assigned_to'] ?? 0);
+
+        $lead = $this->leadModel->findById($leadId);
+        if (!$lead) {
+            $this->json(['error' => 'Lead not found.'], 404);
+            return;
+        }
+
+        $user = currentUser();
+        $newStage = match($action) {
+            'approve' => 'LOGIN_AGENT_ASSIGNED',
+            'reject'  => 'REJECTED',
+            'reassign'=> 'LEAD_ASSIGNED',
+            default   => null,
+        };
+
+        if (!$newStage) {
+            $this->json(['error' => 'Invalid action.'], 400);
+            return;
+        }
+
+        // Store remark
+        $this->db->insert('remarks', [
+            'lead_id'    => $leadId,
+            'user_id'    => $user['id'],
+            'stage'      => 'ADMIN_REVIEW_1',
+            'remark'     => $remark,
+            'created_at' => date('Y-m-d H:i:s'),
+        ]);
+
+        // Transition workflow
+        $this->workflowModel->transition(
+            $leadId,
+            'ADMIN_REVIEW_1',
+            $newStage,
+            $user['id'],
+            $user['role_name'],
+            $remark,
+            $action
+        );
+
+        // Assign to login agent if approved
+        if ($action === 'approve' && $assignedTo) {
+            $this->leadModel->assign($leadId, $assignedTo, $user['id'], $remark);
+            $this->db->update('leads', [
+                'workflow_stage' => $newStage,
+                'updated_at'     => date('Y-m-d H:i:s'),
+            ], 'id = ?', [$leadId]);
+        }
+
+        $this->json(['success' => true, 'message' => "Lead review completed. Status: " . humanStatus($newStage)]);
+    }
+
+    // ========== ADMIN REVIEW 2 ==========
+
+    public function review2(): void
+    {
+        $leads = $this->workflowModel->getPendingApprovals('ADMIN_REVIEW_2');
+
+        $this->view('admin/review2', [
+            'title'  => 'Admin Review (Stage 2)',
+            'leads'  => $leads,
+        ]);
+    }
+
+    public function review2Detail(int $id): void
+    {
+        $lead = $this->leadModel->findById($id);
+        $submissions = $this->formModel->getSubmissionsForLead($id);
+        $timeline = $this->leadModel->getTimeline($id);
+
+        $this->view('admin/review2_detail', [
+            'title'       => 'Review Lead #' . $id,
+            'lead'        => $lead,
+            'submissions' => $submissions,
+            'timeline'    => $timeline,
+        ]);
+    }
+
+    public function processReview2(): void
+    {
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            $this->json(['error' => 'Invalid request.'], 405);
+            return;
+        }
+
+        $leadId = (int)($_POST['lead_id'] ?? 0);
+        $action = $_POST['action'] ?? '';
+        $remark = $_POST['admin_approval2_remark'] ?? '';
+
+        $user = currentUser();
+        $newStage = match($action) {
+            'approve'  => 'LOGIN_APPROVED',
+            'reject'   => 'REJECTED',
+            'send_back'=> 'RETURNED_TO_AGENT',
+            default    => null,
+        };
+
+        if (!$newStage) {
+            $this->json(['error' => 'Invalid action.'], 400);
+            return;
+        }
+
+        $this->db->insert('remarks', [
+            'lead_id'    => $leadId,
+            'user_id'    => $user['id'],
+            'stage'      => 'ADMIN_REVIEW_2',
+            'remark'     => $remark,
+            'created_at' => date('Y-m-d H:i:s'),
+        ]);
+
+        $this->workflowModel->transition(
+            $leadId,
+            'ADMIN_REVIEW_2',
+            $newStage,
+            $user['id'],
+            $user['role_name'],
+            $remark,
+            $action
+        );
+
+        $this->json(['success' => true, 'message' => "Review 2 completed. Status: " . humanStatus($newStage)]);
+    }
+
+    // ========== ROLE & PERMISSION MANAGEMENT ==========
+
+    public function roles(): void
+    {
+        $roleModel = new \Models\Role();
+        $roles = $roleModel->getAll();
+        $permissions = $roleModel->getAllPermissions();
+
+        $this->view('admin/roles', [
+            'title'       => 'Roles & Permissions',
+            'roles'       => $roles,
+            'permissions' => $permissions,
+        ]);
+    }
+
+    public function rolePermissions(int $id): void
+    {
+        $roleModel = new \Models\Role();
+        $role = $roleModel->findById($id);
+        $allPermissions = $roleModel->getAllPermissions();
+        $currentPermissions = $roleModel->getPermissions($id);
+        $currentPermIds = array_column($currentPermissions, 'id');
+
+        $this->view('admin/role_permissions', [
+            'title'             => 'Manage Permissions: ' . $role['name'],
+            'role'              => $role,
+            'allPermissions'    => $allPermissions,
+            'currentPermIds'    => $currentPermIds,
+        ]);
+    }
+
+    public function savePermissions(): void
+    {
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            $this->json(['error' => 'Invalid request.'], 405);
+            return;
+        }
+
+        $roleId = (int)($_POST['role_id'] ?? 0);
+        $permissionIds = $_POST['permissions'] ?? [];
+
+        $roleModel = new \Models\Role();
+        $roleModel->setPermissions($roleId, $permissionIds);
+
+        logActivity(currentUser()['id'], 'permissions_updated', 'role', $roleId);
+
+        $this->json(['success' => true, 'message' => 'Permissions updated.']);
+    }
+
+    // ========== WORKFLOW MANAGEMENT ==========
+
+    public function workflowStages(): void
+    {
+        $stages = $this->workflowModel->getAllStages();
+        $this->view('admin/workflow_stages', [
+            'title'  => 'Workflow Stages',
+            'stages' => $stages,
+        ]);
+    }
+
+    // ========== NOTIFICATIONS ==========
+
+    public function notifications(): void
+    {
+        $user = currentUser();
+        $notifications = $this->db->fetchAll(
+            "SELECT * FROM notifications WHERE user_id = ? ORDER BY created_at DESC LIMIT 50",
+            [$user['id']]
+        );
+
+        $this->view('admin/notifications', [
+            'title'         => 'Notifications',
+            'notifications' => $notifications,
+        ]);
+    }
+
+    public function readNotification(): void
+    {
+        $id = (int)($_POST['notification_id'] ?? 0);
+        if ($id) {
+            $this->db->update('notifications', ['is_read' => 1], 'id = ?', [$id]);
+            $this->json(['success' => true]);
+        }
+    }
+
+    // ========== ACTIVITY LOGS ==========
+
+    public function activityLogs(): void
+    {
+        $page = (int)($_GET['page'] ?? 1);
+        $logs = $this->db->fetchAll(
+            "SELECT al.*, u.name as user_name 
+             FROM activity_logs al 
+             LEFT JOIN users u ON al.user_id = u.id 
+             ORDER BY al.created_at DESC 
+             LIMIT 50 OFFSET " . (($page - 1) * 50)
+        );
+
+        $this->view('admin/activity_logs', [
+            'title' => 'Activity Logs',
+            'logs'  => $logs,
+        ]);
+    }
+}

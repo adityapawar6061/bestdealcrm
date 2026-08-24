@@ -1,0 +1,5 @@
+---
+deployment:
+  tasks:
+    - export DEPLOYPATH=/home/un7xnx5s1w7m/public_html/bdfsloans.com/bestdealcrm/
+    - /bin/cp -R * $DEPLOYPATH

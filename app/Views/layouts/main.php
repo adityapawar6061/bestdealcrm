@@ -1,0 +1,215 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title><?= htmlspecialchars($title ?? 'BestDeal CRM') ?></title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.2/font/bootstrap-icons.css" rel="stylesheet">
+    <link href="/bestdealcrm/public/assets/css/app.css" rel="stylesheet">
+    <style>
+        :root {
+            --sidebar-width: 260px;
+            --sidebar-bg: #1e293b;
+            --sidebar-active: #3b82f6;
+            --topbar-height: 60px;
+        }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #f1f5f9; }
+        .sidebar {
+            position: fixed; top: 0; left: 0; bottom: 0; width: var(--sidebar-width);
+            background: var(--sidebar-bg); color: #fff; overflow-y: auto; z-index: 1000;
+            transition: transform 0.3s ease;
+        }
+        .sidebar .brand { padding: 20px; font-size: 1.25rem; font-weight: 700; border-bottom: 1px solid rgba(255,255,255,0.1); }
+        .sidebar .nav-link {
+            color: #94a3b8; padding: 10px 20px; display: flex; align-items: center; gap: 10px;
+            text-decoration: none; font-size: 0.9rem; transition: all 0.2s;
+        }
+        .sidebar .nav-link:hover { color: #fff; background: rgba(255,255,255,0.05); }
+        .sidebar .nav-link.active { color: #fff; background: var(--sidebar-active); border-radius: 0 25px 25px 0; margin-right: 10px; }
+        .sidebar .nav-section { padding: 15px 20px 5px; font-size: 0.75rem; text-transform: uppercase; color: #64748b; letter-spacing: 1px; }
+        .main-content { margin-left: var(--sidebar-width); min-height: 100vh; }
+        .topbar {
+            height: var(--topbar-height); background: #fff; border-bottom: 1px solid #e2e8f0;
+            display: flex; align-items: center; justify-content: space-between; padding: 0 24px;
+            position: sticky; top: 0; z-index: 999;
+        }
+        .content-area { padding: 24px; }
+        .stat-card {
+            background: #fff; border-radius: 12px; padding: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+            transition: transform 0.2s;
+        }
+        .stat-card:hover { transform: translateY(-2px); }
+        .stat-card .stat-number { font-size: 1.8rem; font-weight: 700; }
+        .stat-card .stat-label { color: #64748b; font-size: 0.85rem; }
+        .table-container { background: #fff; border-radius: 12px; padding: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+        .badge { padding: 4px 10px; border-radius: 20px; font-size: 0.75rem; font-weight: 500; }
+        .page-header { margin-bottom: 24px; }
+        .page-header h4 { font-weight: 700; margin: 0; }
+        .notification-badge { position: absolute; top: -5px; right: -5px; }
+        @media (max-width: 768px) {
+            .sidebar { transform: translateX(-100%); }
+            .sidebar.show { transform: translateX(0); }
+            .main-content { margin-left: 0; }
+        }
+    </style>
+</head>
+<body>
+    <?php $user = currentUser(); $role = $user['role_name'] ?? ''; ?>
+    
+    <!-- Sidebar -->
+    <aside class="sidebar" id="sidebar">
+        <div class="brand">
+            <i class="bi bi-building"></i> BestDeal CRM
+        </div>
+        <nav class="mt-3">
+            <?php if ($role === 'admin'): ?>
+                <div class="nav-section">Main</div>
+                <a href="/bestdealcrm/admin/dashboard" class="nav-link <?= ($_SERVER['REQUEST_URI'] ?? '') === '/bestdealcrm/admin/dashboard' ? 'active' : '' ?>">
+                    <i class="bi bi-speedometer2"></i> Dashboard
+                </a>
+                
+                <div class="nav-section">User Management</div>
+                <a href="/bestdealcrm/admin/users" class="nav-link <?= str_contains($_SERVER['REQUEST_URI'] ?? '', '/admin/users') ? 'active' : '' ?>">
+                    <i class="bi bi-people"></i> Users
+                </a>
+                <a href="/bestdealcrm/admin/roles" class="nav-link <?= str_contains($_SERVER['REQUEST_URI'] ?? '', '/admin/roles') ? 'active' : '' ?>">
+                    <i class="bi bi-shield-lock"></i> Roles & Permissions
+                </a>
+                
+                <div class="nav-section">Lead Management</div>
+                <a href="/bestdealcrm/admin/leads/upload" class="nav-link <?= str_contains($_SERVER['REQUEST_URI'] ?? '', '/leads/upload') ? 'active' : '' ?>">
+                    <i class="bi bi-cloud-upload"></i> Upload Leads
+                </a>
+                <a href="/bestdealcrm/admin/leads" class="nav-link <?= (str_contains($_SERVER['REQUEST_URI'] ?? '', '/admin/leads') && !str_contains($_SERVER['REQUEST_URI'] ?? '', '/upload') && !str_contains($_SERVER['REQUEST_URI'] ?? '', '/assign')) ? 'active' : '' ?>">
+                    <i class="bi bi-list-ul"></i> All Leads
+                </a>
+                <a href="/bestdealcrm/admin/leads/assign" class="nav-link <?= str_contains($_SERVER['REQUEST_URI'] ?? '', '/leads/assign') ? 'active' : '' ?>">
+                    <i class="bi bi-person-check"></i> Assign Leads
+                </a>
+                
+                <div class="nav-section">Workflow</div>
+                <a href="/bestdealcrm/admin/review1" class="nav-link <?= str_contains($_SERVER['REQUEST_URI'] ?? '', '/admin/review1') ? 'active' : '' ?>">
+                    <i class="bi bi-clipboard-check"></i> Review (Stage 1)
+                </a>
+                <a href="/bestdealcrm/admin/review2" class="nav-link <?= str_contains($_SERVER['REQUEST_URI'] ?? '', '/admin/review2') ? 'active' : '' ?>">
+                    <i class="bi bi-clipboard2-check"></i> Review (Stage 2)
+                </a>
+                <a href="/bestdealcrm/admin/workflow" class="nav-link <?= str_contains($_SERVER['REQUEST_URI'] ?? '', '/admin/workflow') ? 'active' : '' ?>">
+                    <i class="bi bi-diagram-3"></i> Workflow Stages
+                </a>
+                
+                <div class="nav-section">Builder</div>
+                <a href="/bestdealcrm/admin/form-builder" class="nav-link <?= str_contains($_SERVER['REQUEST_URI'] ?? '', '/form-builder') ? 'active' : '' ?>">
+                    <i class="bi bi-ui-checks-grid"></i> Form Builder
+                </a>
+                <a href="/bestdealcrm/admin/table-builder" class="nav-link <?= str_contains($_SERVER['REQUEST_URI'] ?? '', '/table-builder') ? 'active' : '' ?>">
+                    <i class="bi bi-table"></i> Table Builder
+                </a>
+                
+                <div class="nav-section">System</div>
+                <a href="/bestdealcrm/admin/notifications" class="nav-link <?= str_contains($_SERVER['REQUEST_URI'] ?? '', '/notifications') ? 'active' : '' ?>">
+                    <i class="bi bi-bell"></i> Notifications
+                </a>
+                <a href="/bestdealcrm/admin/activity-logs" class="nav-link <?= str_contains($_SERVER['REQUEST_URI'] ?? '', '/activity-logs') ? 'active' : '' ?>">
+                    <i class="bi bi-clock-history"></i> Activity Logs
+                </a>
+            <?php elseif ($role === 'agent'): ?>
+                <a href="/bestdealcrm/agent/dashboard" class="nav-link <?= str_contains($_SERVER['REQUEST_URI'] ?? '', '/agent/dashboard') ? 'active' : '' ?>">
+                    <i class="bi bi-speedometer2"></i> Dashboard
+                </a>
+                <a href="/bestdealcrm/agent/leads" class="nav-link <?= str_contains($_SERVER['REQUEST_URI'] ?? '', '/agent/leads') ? 'active' : '' ?>">
+                    <i class="bi bi-list-ul"></i> My Leads
+                </a>
+            <?php elseif ($role === 'login_agent'): ?>
+                <a href="/bestdealcrm/login-agent/dashboard" class="nav-link <?= str_contains($_SERVER['REQUEST_URI'] ?? '', '/login-agent/dashboard') ? 'active' : '' ?>">
+                    <i class="bi bi-speedometer2"></i> Dashboard
+                </a>
+                <a href="/bestdealcrm/login-agent/cases" class="nav-link <?= str_contains($_SERVER['REQUEST_URI'] ?? '', '/login-agent/cases') ? 'active' : '' ?>">
+                    <i class="bi bi-folder2-open"></i> Assigned Cases
+                </a>
+            <?php endif; ?>
+        </nav>
+    </aside>
+
+    <!-- Main Content -->
+    <div class="main-content">
+        <!-- Topbar -->
+        <header class="topbar">
+            <div class="d-flex align-items-center">
+                <button class="btn btn-sm btn-outline-secondary d-md-none me-2" onclick="document.getElementById('sidebar').classList.toggle('show')">
+                    <i class="bi bi-list"></i>
+                </button>
+                <span class="text-muted"><?= htmlspecialchars($title ?? '') ?></span>
+            </div>
+            <div class="d-flex align-items-center gap-3">
+                <?php $notifCount = unreadNotificationCount(); ?>
+                <a href="/bestdealcrm/<?= $role === 'admin' ? 'admin' : $role === 'agent' ? 'agent' : 'login-agent' ?>/notifications" class="position-relative text-decoration-none">
+                    <i class="bi bi-bell fs-5 text-muted"></i>
+                    <?php if ($notifCount > 0): ?>
+                        <span class="badge bg-danger notification-badge"><?= $notifCount > 99 ? '99+' : $notifCount ?></span>
+                    <?php endif; ?>
+                </a>
+                <div class="dropdown">
+                    <a href="#" class="d-flex align-items-center text-decoration-none dropdown-toggle" data-bs-toggle="dropdown">
+                        <div class="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center" style="width:35px;height:35px">
+                            <?= strtoupper(substr($user['name'] ?? 'U', 0, 1)) ?>
+                        </div>
+                        <span class="ms-2 d-none d-md-inline text-dark"><?= htmlspecialchars($user['name'] ?? '') ?></span>
+                    </a>
+                    <ul class="dropdown-menu dropdown-menu-end">
+                        <li><span class="dropdown-item-text text-muted small">Signed in as <strong><?= htmlspecialchars($user['username'] ?? '') ?></strong></span></li>
+                        <li><span class="dropdown-item-text text-muted small">Role: <?= ucfirst(str_replace('_', ' ', $role)) ?></span></li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li><a class="dropdown-item" href="/bestdealcrm/logout"><i class="bi bi-box-arrow-right me-2"></i>Logout</a></li>
+                    </ul>
+                </div>
+            </div>
+        </header>
+
+        <!-- Page Content -->
+        <div class="content-area">
+            <!-- Flash Messages -->
+            <?php $flash = getAllFlash(); foreach ($flash as $type => $message): ?>
+                <div class="alert alert-<?= $type === 'error' ? 'danger' : $type ?> alert-dismissible fade show" role="alert">
+                    <?= htmlspecialchars($message) ?>
+                    <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                </div>
+            <?php endforeach; ?>
+
+            <?= $content ?>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        // CSRF token for AJAX
+        const CSRF_TOKEN = '<?= csrfToken() ?>';
+        
+        // Generic AJAX helper
+        async function ajaxPost(url, data) {
+            const formData = data instanceof FormData ? data : (() => {
+                const fd = new FormData();
+                for (const [key, value] of Object.entries(data)) {
+                    if (Array.isArray(value)) {
+                        value.forEach(v => fd.append(key + '[]', v));
+                    } else {
+                        fd.append(key, value);
+                    }
+                }
+                return fd;
+            })();
+            formData.append('_csrf_token', CSRF_TOKEN);
+            
+            const response = await fetch(url, {
+                method: 'POST',
+                body: formData,
+                headers: { 'X-Requested-With': 'XMLHttpRequest' }
+            });
+            return await response.json();
+        }
+    </script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="/bestdealcrm/public/assets/js/app.js"></script>
+</body>
+</html>

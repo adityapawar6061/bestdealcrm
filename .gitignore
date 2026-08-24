@@ -1,0 +1,13 @@
+.env
+credentails.txt
+credentials.txt
+prompt*.txt
+*.log
+storage/logs/*
+public/uploads/*
+!storage/logs/.gitkeep
+!public/uploads/.gitkeep
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

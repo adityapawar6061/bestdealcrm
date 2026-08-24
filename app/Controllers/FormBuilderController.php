@@ -1,0 +1,209 @@
+<?php
+namespace Controllers;
+
+class FormBuilderController extends BaseController
+{
+    private \Models\DynamicForm $formModel;
+
+    public function __construct()
+    {
+        parent::__construct();
+        $this->formModel = new \Models\DynamicForm();
+    }
+
+    public function index(): void
+    {
+        $forms = $this->formModel->getAll();
+
+        $this->view('admin/form_builder/index', [
+            'title' => 'Form Builder',
+            'forms' => $forms,
+        ]);
+    }
+
+    public function create(): void
+    {
+        $this->view('admin/form_builder/create', [
+            'title' => 'Create Form',
+        ]);
+    }
+
+    public function store(): void
+    {
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            $this->json(['error' => 'Invalid request.'], 405);
+            return;
+        }
+
+        $data = $this->sanitize($_POST);
+        $errors = $this->validate($data, [
+            'name' => 'required',
+            'code' => 'required',
+        ]);
+
+        if (!empty($errors)) {
+            $this->json(['errors' => $errors], 422);
+            return;
+        }
+
+        $id = $this->formModel->create([
+            'name'            => $data['name'],
+            'code'            => $data['code'],
+            'description'     => $data['description'] ?? '',
+            'assigned_role'   => $data['assigned_role'] ?? '',
+            'related_table'   => $data['related_table'] ?? '',
+            'workflow_stage'  => $data['workflow_stage'] ?? '',
+        ]);
+
+        // Set role access
+        if (!empty($_POST['allowed_roles'])) {
+            foreach ($_POST['allowed_roles'] as $roleId) {
+                $this->db->insert('form_role_access', [
+                    'form_id' => $id,
+                    'role_id' => $roleId,
+                ]);
+            }
+        }
+
+        logActivity(currentUser()['id'], 'form_created', 'form', $id);
+
+        $this->json(['success' => true, 'message' => 'Form created.', 'id' => $id]);
+    }
+
+    public function edit(int $id): void
+    {
+        $form = $this->formModel->getFullForm($id);
+        if (!$form) {
+            $this->redirect('/admin/form-builder', 'error', 'Form not found.');
+            return;
+        }
+
+        $allRoles = $this->db->fetchAll("SELECT * FROM roles ORDER BY name");
+        $formRoles = $this->db->fetchAll(
+            "SELECT role_id FROM form_role_access WHERE form_id = ?",
+            [$id]
+        );
+        $assignedRoleIds = array_column($formRoles, 'role_id');
+
+        $this->view('admin/form_builder/edit', [
+            'title'           => 'Edit Form: ' . $form['name'],
+            'form'            => $form,
+            'allRoles'        => $allRoles,
+            'assignedRoleIds' => $assignedRoleIds,
+        ]);
+    }
+
+    public function update(int $id): void
+    {
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            $this->json(['error' => 'Invalid request.'], 405);
+            return;
+        }
+
+        $data = $this->sanitize($_POST);
+
+        $this->formModel->update($id, [
+            'name'           => $data['name'] ?? '',
+            'description'    => $data['description'] ?? '',
+            'workflow_stage' => $data['workflow_stage'] ?? '',
+            'status'         => $data['status'] ?? 'active',
+        ]);
+
+        // Update role access
+        $this->db->delete('form_role_access', 'form_id = ?', [$id]);
+        if (!empty($_POST['allowed_roles'])) {
+            foreach ($_POST['allowed_roles'] as $roleId) {
+                $this->db->insert('form_role_access', [
+                    'form_id' => $id,
+                    'role_id' => $roleId,
+                ]);
+            }
+        }
+
+        logActivity(currentUser()['id'], 'form_updated', 'form', $id);
+
+        $this->json(['success' => true, 'message' => 'Form updated.']);
+    }
+
+    /**
+     * Add a section to form via AJAX
+     */
+    public function addSection(): void
+    {
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            $this->json(['error' => 'Invalid request.'], 405);
+            return;
+        }
+
+        $formId = (int)($_POST['form_id'] ?? 0);
+        $name = $_POST['name'] ?? '';
+
+        if (!$formId || empty($name)) {
+            $this->json(['error' => 'Form ID and section name required.'], 422);
+            return;
+        }
+
+        $maxOrder = $this->db->fetchOne(
+            "SELECT COALESCE(MAX(display_order), 0) + 1 as next_order FROM form_sections WHERE form_id = ?",
+            [$formId]
+        );
+
+        $id = $this->formModel->createSection([
+            'form_id'       => $formId,
+            'name'          => $name,
+            'display_order' => $maxOrder['next_order'],
+        ]);
+
+        $this->json(['success' => true, 'message' => 'Section added.', 'id' => $id]);
+    }
+
+    /**
+     * Add a field to section via AJAX
+     */
+    public function addField(): void
+    {
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            $this->json(['error' => 'Invalid request.'], 405);
+            return;
+        }
+
+        $sectionId = (int)($_POST['section_id'] ?? 0);
+        $fieldData = [
+            'section_id'    => $sectionId,
+            'field_name'    => $_POST['field_name'] ?? '',
+            'label'         => $_POST['label'] ?? '',
+            'type'          => $_POST['type'] ?? 'text',
+            'required'      => isset($_POST['required']) ? 1 : 0,
+            'placeholder'   => $_POST['placeholder'] ?? '',
+            'default_value' => $_POST['default_value'] ?? '',
+            'visible_roles' => $_POST['visible_roles'] ?? '',
+            'editable_roles'=> $_POST['editable_roles'] ?? '',
+        ];
+
+        $maxOrder = $this->db->fetchOne(
+            "SELECT COALESCE(MAX(display_order), 0) + 1 as next_order FROM form_fields WHERE section_id = ?",
+            [$sectionId]
+        );
+        $fieldData['display_order'] = $maxOrder['next_order'];
+
+        $id = $this->formModel->createField($fieldData);
+
+        // Save options for dropdown/multi-select/radio
+        if (in_array($fieldData['type'], ['dropdown', 'multi-select', 'radio']) && !empty($_POST['options'])) {
+            $this->formModel->saveFieldOptions($id, $_POST['options']);
+        }
+
+        $this->json(['success' => true, 'message' => 'Field added.', 'id' => $id]);
+    }
+
+    /**
+     * Delete a field via AJAX
+     */
+    public function deleteField(int $id): void
+    {
+        if ($_SERVER['REQUEST_METHOD'] === 'POST' || $_SERVER['REQUEST_METHOD'] === 'DELETE') {
+            $this->formModel->deleteField($id);
+            $this->json(['success' => true, 'message' => 'Field deleted.']);
+        }
+    }
+}

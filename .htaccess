@@ -1,0 +1,6 @@
+RewriteEngine On
+RewriteBase /bestdealcrm/
+
+# Redirect everything to public/index.php
+RewriteRule ^$ public/index.php [L]
+RewriteRule ((?!public/).*) public/$1 [L,NC]

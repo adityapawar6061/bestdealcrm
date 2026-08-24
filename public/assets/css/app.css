@@ -1,0 +1,75 @@
+/* BestDeal CRM - Custom Styles */
+
+/* Form styling */
+.form-label { font-weight: 500; font-size: 0.875rem; }
+.form-control:focus, .form-select:focus { border-color: #3b82f6; box-shadow: 0 0 0 3px rgba(59,130,246,0.1); }
+
+/* Table enhancements */
+.table th { font-weight: 600; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.5px; color: #64748b; }
+.table td { vertical-align: middle; font-size: 0.9rem; }
+
+/* Button transitions */
+.btn { transition: all 0.2s ease; }
+.btn:hover { transform: translateY(-1px); }
+
+/* Sidebar active indicator */
+.sidebar .nav-link.active {
+    position: relative;
+}
+.sidebar .nav-link.active::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 3px;
+    height: 60%;
+    background: #fff;
+    border-radius: 0 4px 4px 0;
+}
+
+/* Badge variants */
+.badge-secondary { background: #94a3b8; }
+.badge-info { background: #06b6d4; }
+.badge-warning { background: #f59e0b; color: #000; }
+.badge-danger { background: #ef4444; }
+.badge-success { background: #22c55e; }
+.badge-primary { background: #3b82f6; }
+.badge-purple { background: #8b5cf6; }
+
+/* Stat card purple */
+.border-purple { border-color: #8b5cf6 !important; }
+
+/* Smooth loading */
+.content-area { animation: fadeIn 0.3s ease; }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+/* Timeline */
+.timeline { position: relative; }
+.timeline::before {
+    content: '';
+    position: absolute;
+    left: 18px;
+    top: 0;
+    bottom: 0;
+    width: 2px;
+    background: #e2e8f0;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: #f1f5f9; }
+::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+/* Mobile responsive sidebar */
+@media (max-width: 768px) {
+    .sidebar { box-shadow: 4px 0 20px rgba(0,0,0,0.3); }
+}
+
+/* Print styles */
+@media print {
+    .sidebar, .topbar, .btn { display: none !important; }
+    .main-content { margin-left: 0 !important; }
+    .content-area { padding: 0 !important; }
+}
