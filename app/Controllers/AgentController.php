@@ -39,15 +39,28 @@ class AgentController extends BaseController
         $filters = [
             'search'         => $_GET['search'] ?? '',
             'workflow_stage' => $_GET['workflow_stage'] ?? '',
+            'disposition'    => $_GET['disposition'] ?? '',
         ];
         $page = (int)($_GET['page'] ?? 1);
 
         $leads = $this->leadModel->getByAgent($user['id'], $filters, $page);
 
+        // Disposition stats for cards
+        $userId = $user['id'];
+        $totalAssigned = $this->db->count('leads', 'assigned_to = ?', [$userId]);
+        $pendingDisposition = $this->db->count('leads', 'assigned_to = ? AND (disposition IS NULL OR disposition = \'\')', [$userId]);
+        $dispositionCounts = $this->db->fetchAll(
+            "SELECT disposition, COUNT(*) as cnt FROM leads WHERE assigned_to = ? AND disposition IS NOT NULL AND disposition != '' GROUP BY disposition ORDER BY cnt DESC",
+            [$userId]
+        );
+
         $this->view('agent/leads', [
-            'title'  => 'My Leads',
-            'leads'  => $leads,
-            'filters'=> $filters,
+            'title'              => 'My Leads',
+            'leads'              => $leads,
+            'filters'            => $filters,
+            'totalAssigned'      => $totalAssigned,
+            'pendingDisposition' => $pendingDisposition,
+            'dispositionCounts'  => $dispositionCounts,
         ]);
     }
 
@@ -352,6 +365,42 @@ class AgentController extends BaseController
             $this->db->update('notifications', ['is_read' => 1], 'id = ?', [$id]);
             $this->json(['success' => true]);
         }
+    }
+
+    /**
+     * AJAX: Update disposition and/or remark inline
+     */
+    public function updateDisposition(): void
+    {
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            $this->json(['error' => 'Invalid request.'], 405);
+            return;
+        }
+
+        $leadId = (int)($_POST['lead_id'] ?? 0);
+        $disposition = trim($_POST['disposition'] ?? '');
+        $agentRemark = trim($_POST['agent_remark'] ?? null);
+        $user = currentUser();
+
+        $lead = $this->leadModel->findById($leadId);
+        if (!$lead || $lead['assigned_to'] != $user['id']) {
+            $this->json(['error' => 'Unauthorized.'], 403);
+            return;
+        }
+
+        $updateData = ['updated_at' => date('Y-m-d H:i:s')];
+        if ($disposition !== null && $disposition !== '') {
+            $updateData['disposition'] = $disposition;
+            $updateData['agent_disposition'] = $disposition;
+        }
+        if ($agentRemark !== null) {
+            $updateData['agent_remark'] = $agentRemark;
+        }
+
+        $this->db->update('leads', $updateData, 'id = ?', [$leadId]);
+        logActivity($user['id'], 'disposition_updated', 'lead', $leadId, null, json_encode(['disposition' => $disposition]));
+
+        $this->json(['success' => true, 'message' => 'Updated.']);
     }
 
     /**

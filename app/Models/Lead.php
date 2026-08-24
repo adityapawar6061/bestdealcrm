@@ -141,6 +141,10 @@ class Lead
             $where .= ' AND l.assigned_to = ?';
             $params[] = $filters['assigned_to'];
         }
+        if (!empty($filters['disposition'])) {
+            $where .= ' AND l.disposition = ?';
+            $params[] = $filters['disposition'];
+        }
         if (!empty($filters['date_from'])) {
             $where .= ' AND l.created_at >= ?';
             $params[] = $filters['date_from'];

@@ -125,6 +125,7 @@ $router->middleware(['AuthMiddleware'], function ($router) {
         $router->get('/leads/{id}/fill-form', 'AgentController', 'fillForm');
         $router->post('/leads/save-draft', 'AgentController', 'saveDraft');
         $router->post('/leads/submit-form', 'AgentController', 'submitForm');
+        $router->post('/leads/update-disposition', 'AgentController', 'updateDisposition');
         
         // Notifications
         $router->get('/notifications', 'AgentController', 'notifications');
