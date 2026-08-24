@@ -1,94 +1,82 @@
 <?php
 /**
- * BestDeal CRM - Front Controller (Public Entry Point)
- * 
- * ALL requests are routed through this file via .htaccess.
- * This file bootstraps the MVC application:
- *   1. Load config and environment
- *   2. Set up autoloader
- *   3. Load helpers (session, CSRF, utilities)
- *   4. Load routes
- *   5. Dispatch request via Router
+ * BestDeal CRM - Front Controller
+ * All requests routed through this file via .htaccess.
  */
 
-// Error reporting (controlled by environment)
 error_reporting(E_ALL);
 ini_set('display_errors', '0');
 ini_set('log_errors', '1');
 
-// Define root path (one level up from public/)
+// Polyfills for PHP 7.x (str_contains, str_starts_with, str_ends_with)
+if (!function_exists('str_contains')) {
+    function str_contains(string $haystack, string $needle): bool {
+        return $needle === '' || strpos($haystack, $needle) !== false;
+    }
+}
+if (!function_exists('str_starts_with')) {
+    function str_starts_with(string $haystack, string $needle): bool {
+        return $needle === '' || strpos($haystack, $needle) === 0;
+    }
+}
+if (!function_exists('str_ends_with')) {
+    function str_ends_with(string $haystack, string $needle): bool {
+        return $needle === '' || substr($haystack, -strlen($needle)) === $needle;
+    }
+}
+if (!function_exists('enum_exists')) {
+    // Prevent errors from enum references if any
+}
+
 $rootPath = dirname(__DIR__);
 define('ROOT_PATH', $rootPath);
 
-// ============================================================
-// 1. AUTLOADER
-// ============================================================
-spl_autoload_register(function (string $class): void {
-    // Handle non-namespaced classes (Helpers, Session, Database, Router)
-    $simpleClasses = [
-        'Database' => ROOT_PATH . '/config/database.php',
-        'Router'   => ROOT_PATH . '/config/Router.php',
-    ];
-    
-    if (isset($simpleClasses[$class])) {
-        require_once $simpleClasses[$class];
+// Simple autoloader: no namespace escaping issues
+spl_autoload_register(function ($class) {
+    // Non-namespaced singletons
+    if ($class === 'Database') {
+        require_once ROOT_PATH . '/config/database.php';
         return;
     }
-    
-    // PSR-4 style: Controllers, Models, Middleware, Services
-    // e.g. Controllers\AdminController -> app/Controllers/AdminController.php
-    $prefixes = [
-        'Controllers\\'  => ROOT_PATH . '/app/Controllers/',
-        'Models\\'       => ROOT_PATH . '/app/Models/',
-        'Middleware\\'    => ROOT_PATH . '/app/Middleware/',
-        'Services\\'     => ROOT_PATH . '/app/Services/',
-    ];
-    
-    foreach ($prefixes as $prefix => $baseDir) {
-        if (strncmp($class, $prefix, strlen($prefix)) === 0) {
-            $relativeClass = substr($class, strlen($prefix));
-            $file = $baseDir . str_replace('\\', '/', $relativeClass) . '.php';
-            if (file_exists($file)) {
-                require_once $file;
-                return;
-            }
-        }
+    if ($class === 'Router') {
+        require_once ROOT_PATH . '/config/Router.php';
+        return;
+    }
+
+    // Namespaced classes: Controllers\User, Models\Lead, etc.
+    // Convert namespace separator to directory separator
+    $file = ROOT_PATH . '/app/' . str_replace('\\', '/', $class) . '.php';
+    if (file_exists($file)) {
+        require_once $file;
+        return;
+    }
+
+    // Middleware
+    $file = ROOT_PATH . '/app/' . str_replace('\\', '/', $class) . '.php';
+    if (file_exists($file)) {
+        require_once $file;
+        return;
     }
 });
 
-// ============================================================
-// 2. CONFIG & ENVIRONMENT
-// ============================================================
+// Config & Environment
 require_once ROOT_PATH . '/config/config.php';
 
-// ============================================================
-// 3. HELPER FILES (session, CSRF, utilities)
-// ============================================================
-// Session.php handles session_start(), CSRF, flash messages
-// It defines: isAuthenticated(), currentUser(), setAuthUser(), etc.
+// Helpers (session, CSRF, utilities)
 require_once ROOT_PATH . '/app/Helpers/Session.php';
-// Helpers.php defines: logActivity(), createNotification(), hasPermission(), etc.
 require_once ROOT_PATH . '/app/Helpers/Helpers.php';
 
-// ============================================================
-// 4. ROUTES
-// ============================================================
+// Routes
 require_once ROOT_PATH . '/routes/web.php';
 
-// ============================================================
-// 5. STRIP BASE PATH AND DISPATCH
-// ============================================================
+// Strip base path and dispatch
 $requestUri = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH);
 $basePath = '/bestdealcrm';
 
-// Strip the application base path
 if (strpos($requestUri, $basePath) === 0) {
     $requestUri = substr($requestUri, strlen($basePath));
 }
 
-// Set the stripped path on the server for the Router to use
-// Router uses REQUEST_URI to match routes, so we override it
 $_SERVER['REQUEST_URI'] = $requestUri ?: '/';
 
-// Dispatch the request
 $router->dispatch();

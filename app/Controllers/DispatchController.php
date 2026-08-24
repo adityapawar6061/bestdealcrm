@@ -92,9 +92,9 @@ class DispatchController extends BaseController
             return;
         }
 
-        $newStage = match($action) {
-            'complete' => 'COMPLETED',
-            default    => null,
+        $newStage = null;
+        switch ($action) {
+            case 'complete': $newStage = 'COMPLETED'; break;
         };
 
         if (!$newStage) {

@@ -484,11 +484,11 @@ class AdminController extends BaseController
         }
 
         $user = currentUser();
-        $newStage = match($action) {
-            'approve' => 'LOGIN_AGENT_ASSIGNED',
-            'reject'  => 'REJECTED',
-            'reassign'=> 'LEAD_ASSIGNED',
-            default   => null,
+        $newStage = null;
+        switch ($action) {
+            case 'approve': $newStage = 'LOGIN_AGENT_ASSIGNED'; break;
+            case 'reject': $newStage = 'REJECTED'; break;
+            case 'reassign': $newStage = 'LEAD_ASSIGNED'; break;
         };
 
         if (!$newStage) {
@@ -566,11 +566,11 @@ class AdminController extends BaseController
         $remark = $_POST['admin_approval2_remark'] ?? '';
 
         $user = currentUser();
-        $newStage = match($action) {
-            'approve'  => 'LOGIN_APPROVED',
-            'reject'   => 'REJECTED',
-            'send_back'=> 'RETURNED_TO_AGENT',
-            default    => null,
+        $newStage = null;
+        switch ($action) {
+            case 'approve': $newStage = 'LOGIN_APPROVED'; break;
+            case 'reject': $newStage = 'REJECTED'; break;
+            case 'send_back': $newStage = 'RETURNED_TO_AGENT'; break;
         };
 
         if (!$newStage) {

@@ -58,8 +58,8 @@ function env(string $key, $default = null)
 $rootPath = dirname(__DIR__);
 loadEnv($rootPath . '/.env');
 
-// Define base paths
-define('ROOT_PATH', $rootPath);
+// Define base paths (ROOT_PATH may already be defined by index.php)
+if (!defined('ROOT_PATH')) define('ROOT_PATH', $rootPath);
 define('APP_PATH', ROOT_PATH . '/app');
 define('PUBLIC_PATH', ROOT_PATH . '/public');
 define('CONFIG_PATH', ROOT_PATH . '/config');

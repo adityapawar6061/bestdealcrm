@@ -89,10 +89,10 @@ class UnderwritingController extends BaseController
             return;
         }
 
-        $newStage = match($action) {
-            'approve' => 'UNDERWRITING_APPROVED',
-            'reject'  => 'UNDERWRITING_REJECTED',
-            default   => null,
+        $newStage = null;
+        switch ($action) {
+            case 'approve': $newStage = 'UNDERWRITING_APPROVED'; break;
+            case 'reject': $newStage = 'UNDERWRITING_REJECTED'; break;
         };
 
         if (!$newStage) {
