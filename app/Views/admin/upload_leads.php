@@ -470,8 +470,11 @@ async function submitMapping() {
         });
         var text = await response.text();
         var result;
-        try { result = JSON.parse(text); } catch(e) {
-            showToast('Server error during import.', 'danger');
+        try {
+            result = JSON.parse(text);
+        } catch(e) {
+            console.error('Non-JSON import response:', text.substring(0, 1000));
+            showToast('Server returned an error. The file may be too large or the session expired. Try uploading again.', 'danger');
             return;
         }
 

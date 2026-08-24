@@ -336,6 +336,16 @@ class AdminController extends BaseController
         $_SESSION['upload_rows'] = $rows;
         $_SESSION['upload_id'] = $uploadId;
 
+        // Also save uploaded file to disk as backup (for session recovery)
+        $uploadDir = ROOT_PATH . '/public/uploads/leads';
+        if (!is_dir($uploadDir)) mkdir($uploadDir, 0755, true);
+        $diskFile = $uploadDir . '/upload_' . $uploadId . '.csv';
+        if ($ext === 'csv') {
+            copy($file['tmp_name'], $diskFile);
+        } else {
+            move_uploaded_file($file['tmp_name'], $diskFile);
+        }
+
         $this->json([
             'success' => true,
             'columns' => $columns,
@@ -348,7 +358,7 @@ class AdminController extends BaseController
     public function processMapping(): void
     {
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-            $this->json(['error' => 'Invalid request.'], 405);
+            $this->json(['error' => 'Invalid request method.'], 405);
             return;
         }
 
@@ -356,8 +366,32 @@ class AdminController extends BaseController
         $uploadId = $_SESSION['upload_id'] ?? null;
         $rows = $_SESSION['upload_rows'] ?? [];
 
-        if (empty($rows) || empty($mapping)) {
-            $this->json(['error' => 'Invalid mapping data.'], 400);
+        error_log('processMapping: upload_id=' . var_export($uploadId, true) . ' rows=' . count($rows) . ' mapping=' . count($mapping));
+
+        // Try to recover from disk if session data is lost
+        if (empty($rows) && $uploadId) {
+            $diskFile = ROOT_PATH . '/public/uploads/leads/upload_' . $uploadId . '.csv';
+            if (file_exists($diskFile)) {
+                if (($handle = fopen($diskFile, 'r')) !== false) {
+                    $headers = fgetcsv($handle);
+                    while (($row = fgetcsv($handle)) !== false) {
+                        if (count($row) === count($headers)) {
+                            $rows[] = array_combine($headers, $row);
+                        }
+                    }
+                    fclose($handle);
+                    $_SESSION['upload_rows'] = $rows;
+                    error_log('processMapping: recovered ' . count($rows) . ' rows from disk');
+                }
+            }
+        }
+
+        if (empty($rows)) {
+            $this->json(['error' => 'Upload session expired. Please upload the file again.'], 400);
+            return;
+        }
+        if (empty($mapping)) {
+            $this->json(['error' => 'No column mappings provided. Map at least one column.'], 400);
             return;
         }
 
@@ -417,8 +451,8 @@ class AdminController extends BaseController
 
         } catch (\Exception $e) {
             $this->db->rollback();
-            error_log("Upload processing error: " . $e->getMessage());
-            $this->json(['error' => 'Failed to process upload.'], 500);
+            error_log("Upload processing error: " . $e->getMessage() . " in " . $e->getFile() . ':' . $e->getLine());
+            $this->json(['error' => 'Import failed: ' . $e->getMessage()], 500);
         }
     }
 
@@ -1139,34 +1173,63 @@ class AdminController extends BaseController
             return;
         }
 
-        // Create CSV header
-        $header = array_map(function($col) { return trim($col); }, $columns);
-        $csv = implode(',', array_map(function($col) { return '"' . str_replace('"', '""', $col) . '"'; }, $header));
+        try {
+            // Ensure lead_templates table exists
+            $this->db->query("CREATE TABLE IF NOT EXISTS `lead_templates` (
+                `id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+                `name` VARCHAR(255) NOT NULL,
+                `columns` TEXT,
+                `created_by` INT UNSIGNED,
+                `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
 
-        // Save template record
-        $templateId = $this->db->insert('lead_templates', [
-            'name'       => $name,
-            'columns'    => json_encode($header),
-            'created_by' => currentUser()['id'],
-            'created_at' => date('Y-m-d H:i:s'),
-        ]);
+            // Create CSV header
+            $header = array_map(function($col) { return trim($col); }, $columns);
+            $csv = implode(',', array_map(function($col) { return '"' . str_replace('"', '""', $col) . '"'; }, $header));
+            $csv .= "\n";
 
-        // Save CSV file
-        $templateDir = ROOT_PATH . '/public/uploads/templates';
-        if (!is_dir($templateDir)) mkdir($templateDir, 0755, true);
-        file_put_contents($templateDir . '/template_' . $templateId . '.csv', $csv);
+            // Save template record
+            $templateId = $this->db->insert('lead_templates', [
+                'name'       => $name,
+                'columns'    => json_encode($header),
+                'created_by' => currentUser()['id'],
+                'created_at' => date('Y-m-d H:i:s'),
+            ]);
 
-        logActivity(currentUser()['id'], 'template_created', 'template', (int)$templateId);
+            // Save CSV file
+            $templateDir = ROOT_PATH . '/public/uploads/templates';
+            if (!is_dir($templateDir)) mkdir($templateDir, 0755, true);
+            file_put_contents($templateDir . '/template_' . $templateId . '.csv', $csv);
 
-        $this->json(['success' => true, 'message' => 'Template created.', 'id' => $templateId]);
+            logActivity(currentUser()['id'], 'template_created', 'template', (int)$templateId);
+
+            $this->json(['success' => true, 'message' => 'Template created.', 'id' => $templateId]);
+        } catch (\Exception $e) {
+            error_log('storeTemplate error: ' . $e->getMessage());
+            $this->json(['error' => 'Failed to save template: ' . $e->getMessage()], 500);
+        }
     }
 
     public function listTemplates(): void
     {
-        $templates = $this->db->fetchAll(
-            "SELECT t.*, u.name as created_by_name FROM lead_templates t LEFT JOIN users u ON t.created_by = u.id ORDER BY t.created_at DESC"
-        );
-        $this->json(['success' => true, 'templates' => $templates]);
+        try {
+            // Ensure table exists
+            $this->db->query("CREATE TABLE IF NOT EXISTS `lead_templates` (
+                `id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+                `name` VARCHAR(255) NOT NULL,
+                `columns` TEXT,
+                `created_by` INT UNSIGNED,
+                `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+            $templates = $this->db->fetchAll(
+                "SELECT t.*, u.name as created_by_name FROM lead_templates t LEFT JOIN users u ON t.created_by = u.id ORDER BY t.created_at DESC"
+            );
+            $this->json(['success' => true, 'templates' => $templates]);
+        } catch (\Exception $e) {
+            error_log('listTemplates error: ' . $e->getMessage());
+            $this->json(['success' => true, 'templates' => []]);
+        }
     }
 
     public function downloadTemplate(int $id): void
