@@ -1,12 +1,8 @@
 <?php
 /**
  * Base Controller
+ * Session.php and Helpers.php are loaded by index.php before this file runs.
  */
-// Load Session using correct path: app/Controllers -> app/Helpers
-$sessionFile = dirname(__DIR__) . '/Helpers/Session.php';
-if (file_exists($sessionFile) && !class_exists('Session') && !function_exists('isAuthenticated')) {
-    require_once $sessionFile;
-}
 
 class BaseController
 {
@@ -59,6 +55,19 @@ class BaseController
         return $_POST[$key] ?? $_GET[$key] ?? $default;
     }
 
+    protected function inputs($keys)
+    {
+        $data = [];
+        foreach ($keys as $key => $default) {
+            if (is_int($key)) {
+                $data[$default] = $this->input($default);
+            } else {
+                $data[$key] = $this->input($key, $default);
+            }
+        }
+        return $data;
+    }
+
     protected function validate($data, $rules)
     {
         $errors = [];
@@ -81,6 +90,16 @@ class BaseController
                     case 'email':
                         if (!empty($value) && !filter_var($value, FILTER_VALIDATE_EMAIL)) {
                             $errors[$field] = 'Invalid email address.';
+                        }
+                        break;
+                    case 'min':
+                        if (!empty($value) && strlen($value) < (int)$params[0]) {
+                            $errors[$field] = "Minimum {$params[0]} characters required.";
+                        }
+                        break;
+                    case 'max':
+                        if (!empty($value) && strlen($value) > (int)$params[0]) {
+                            $errors[$field] = "Maximum {$params[0]} characters allowed.";
                         }
                         break;
                 }
