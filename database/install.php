@@ -1,22 +1,32 @@
 <?php
 /**
  * BestDeal CRM - Database Installer
- * Run this file once to initialize the database
- * Access: http://localhost/bestdealcrm/database/install.php
+ * Standalone installer for cPanel deployment
+ * Access: https://bdfsloans.com/bestdealcrm/database/install.php
  */
 
-require_once __DIR__ . '/../config/database.php';
+// Database credentials - update these if needed for your cPanel
+$dbHost = '68.178.237.250';
+$dbName = 'bestdealcrm';
+$dbUser = 'sayali';
+$dbPass = 'sayali@1234';
 
 $message = '';
 $error = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     try {
-        $db = Database::getInstance();
-        $pdo = $db->getConnection();
+        $dsn = "mysql:host={$dbHost};dbname={$dbName};charset=utf8mb4";
+        $pdo = new PDO($dsn, $dbUser, $dbPass, [
+            PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+            PDO::ATTR_EMULATE_PREPARES => false,
+        ]);
         
         // Read SQL file
         $sqlFile = __DIR__ . '/migration.sql';
+        if (!file_exists($sqlFile)) {
+            throw new Exception("migration.sql file not found at: {$sqlFile}");
+        }
         $sql = file_get_contents($sqlFile);
         
         // Execute SQL statements
@@ -26,22 +36,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $errors = [];
         
         foreach ($statements as $statement) {
-            if (!empty($statement) && $statement !== 'SET FOREIGN_KEY_CHECKS = 0' && $statement !== 'SET FOREIGN_KEY_CHECKS = 1') {
-                try {
-                    $pdo->exec($statement);
-                    $successCount++;
-                } catch (PDOException $e) {
-                    // Skip duplicate entry errors (idempotent)
-                    if (strpos($e->getMessage(), '1062') === false) {
-                        $errors[] = $e->getMessage();
-                    }
+            // Skip empty, SET, and USE statements
+            $upper = strtoupper($statement);
+            if (empty($statement)) continue;
+            if (strpos($upper, 'SET ') === 0) continue;
+            if (strpos($upper, 'USE ') === 0) continue;
+            
+            try {
+                $pdo->exec($statement);
+                $successCount++;
+            } catch (PDOException $e) {
+                // Skip duplicate entry errors (idempotent) and table exists errors
+                $code = $e->getCode();
+                if ($code != '23000' && strpos($e->getMessage(), '1062') === false 
+                    && strpos($e->getMessage(), '1050') === false
+                    && strpos($e->getMessage(), '1061') === false
+                    && strpos($e->getMessage(), '1091') === false) {
+                    $errors[] = substr($e->getMessage(), 0, 200);
                 }
             }
         }
         
         $message = "Installation complete! {$successCount} SQL statements executed successfully.";
         if (!empty($errors)) {
-            $message .= " Some warnings: " . implode('; ', array_slice($errors, 0, 5));
+            $message .= " Warnings: " . implode('; ', array_slice($errors, 0, 3));
         }
         
     } catch (Exception $e) {
@@ -77,13 +95,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 <div class="alert alert-info">
                     <strong>Before installing:</strong>
                     <ul class="mb-0 mt-1 small">
-                        <li>Ensure MySQL is running</li>
-                        <li>Database "bestdealcrm" must exist</li>
-                        <li>Check credentials in config/database.php</li>
+                        <li>Ensure the database "bestdealcrm" exists</li>
+                        <li>Check database credentials below</li>
                     </ul>
                 </div>
                 <div class="mb-3">
-                    <strong>Database:</strong> <?= env('DB_NAME', 'bestdealcrm') ?> @ <?= env('DB_HOST', 'localhost') ?>
+                    <strong>Database:</strong> <?= htmlspecialchars($dbName) ?> @ <?= htmlspecialchars($dbHost) ?>
                 </div>
                 <div class="mb-3">
                     <strong>Default Admin Login:</strong>

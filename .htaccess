@@ -1,6 +1,13 @@
 RewriteEngine On
 RewriteBase /bestdealcrm/
 
-# Redirect everything to public/index.php
+# Allow direct access to database installer and public assets
+RewriteCond %{REQUEST_URI} ^/bestdealcrm/database/ [OR]
+RewriteCond %{REQUEST_URI} ^/bestdealcrm/public/
+RewriteRule ^ - [L]
+
+# Redirect everything else to public/index.php
+RewriteCond %{REQUEST_FILENAME} !-f
+RewriteCond %{REQUEST_FILENAME} !-d
 RewriteRule ^$ public/index.php [L]
-RewriteRule ((?!public/).*) public/$1 [L,NC]
+RewriteRule ((?!public/|database/).*) public/$1 [L,NC]
