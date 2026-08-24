@@ -35,12 +35,24 @@ if (!file_exists($rootPath . '/.env') && !file_exists($rootPath . '/config/confi
 }
 define('ROOT_PATH', $rootPath);
 
+// Step-by-step logging to find exactly where the 500 happens
+function _log($msg) {
+    @file_put_contents(
+        dirname(__DIR__) . '/storage/logs/app.log',
+        date('Y-m-d H:i:s') . ' | ' . $msg . "\n",
+        FILE_APPEND
+    );
+}
+_log('--- REQUEST START ---');
+_log('REQUEST_URI: ' . ($_SERVER['REQUEST_URI'] ?? 'N/A'));
+_log('ROOT_PATH: ' . $rootPath);
+
 // Shutdown error handler to capture fatal errors
 register_shutdown_function(function() {
     $error = error_get_last();
     if ($error && in_array($error['type'], [E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR])) {
         @file_put_contents(
-            ROOT_PATH . '/storage/logs/shutdown_error.log',
+            dirname(__DIR__) . '/storage/logs/shutdown_error.log',
             date('Y-m-d H:i:s') . ' | ' . $error['message'] . ' | ' . $error['file'] . ':' . $error['line'] . "\n",
             FILE_APPEND
         );
@@ -76,21 +88,38 @@ spl_autoload_register(function ($class) {
 });
 
 // Load config & environment
+_log('Loading config...');
 if (file_exists(ROOT_PATH . '/config/config.php')) {
     require_once ROOT_PATH . '/config/config.php';
+    _log('Config loaded. DB_HOST=' . getenv('DB_HOST'));
+} else {
+    _log('ERROR: config.php NOT FOUND at ' . ROOT_PATH . '/config/config.php');
 }
 
 // Load helpers
+_log('Loading Session.php...');
 if (file_exists(ROOT_PATH . '/app/Helpers/Session.php')) {
     require_once ROOT_PATH . '/app/Helpers/Session.php';
+    _log('Session loaded OK');
+} else {
+    _log('ERROR: Session.php NOT FOUND');
 }
+
+_log('Loading Helpers.php...');
 if (file_exists(ROOT_PATH . '/app/Helpers/Helpers.php')) {
     require_once ROOT_PATH . '/app/Helpers/Helpers.php';
+    _log('Helpers loaded OK');
+} else {
+    _log('ERROR: Helpers.php NOT FOUND');
 }
 
 // Load routes
+_log('Loading routes...');
 if (file_exists(ROOT_PATH . '/routes/web.php')) {
     require_once ROOT_PATH . '/routes/web.php';
+    _log('Routes loaded OK');
+} else {
+    _log('ERROR: routes/web.php NOT FOUND');
 }
 
 // Strip base path from URI
@@ -102,12 +131,15 @@ if (strpos($requestUri, $basePath) === 0) {
 }
 
 $_SERVER['REQUEST_URI'] = $requestUri ?: '/';
+_log('Final URI for router: ' . $_SERVER['REQUEST_URI']);
 
 // Dispatch via Router
 if (isset($router) && $router instanceof Router) {
+    _log('Router found, dispatching...');
     $router->dispatch();
 } else {
-    // Fallback: show error
+    _log('ERROR: Router not set! $router=' . var_export($router, true));
     http_response_code(500);
     echo 'Router not initialized. Check routes/web.php';
 }
+_log('--- REQUEST END ---');
