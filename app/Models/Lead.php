@@ -175,7 +175,7 @@ class Lead
         ];
     }
 
-    public function getStats(array $where = '1=1', array $params = []): array
+    public function getStats(string $where = '1=1', array $params = []): array
     {
         $sql = "SELECT workflow_stage, COUNT(*) as count 
                 FROM leads 
