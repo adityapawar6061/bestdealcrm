@@ -1,5 +1,5 @@
 <?php
-// Disposition options (can be configured by admin later)
+// Disposition options
 $dispositionOptions = [
     'Lead Not Connected',
     'Not Interested',
@@ -16,20 +16,37 @@ $dispositionOptions = [
     'Dropped',
 ];
 
-// Format salary as "20K" style
+// Actual salary options for dropdown
+$salaryOptions = ['10K','15K','20K','25K','30K','35K','40K','45K','50K','55K','60K','65K','70K','75K','80K','90K','1L','1.25L','1.5L','2L','2.5L','3L','3.5L','4L','5L','7L','10L'];
+
+// Format salary as "20K" style - handles both numeric and text values
 function formatSalaryShort($val) {
-    if (!$val || $val == 0) return '—';
-    $n = (float)$val;
+    if ($val === null || $val === '' || $val === '0' || $val === 0) return '—';
+    $strVal = trim((string)$val);
+    // If it already contains K/L/Cr, show as-is (uppercased)
+    if (preg_match('/^([\d.]+)\s*(k|l|cr|lac|lakh)/i', $strVal, $m)) {
+        return strtoupper($m[1] . $m[2]);
+    }
+    $n = (float)$strVal;
+    if ($n == 0) return '—';
     if ($n >= 10000000) return round($n / 10000000, 1) . 'Cr';
     if ($n >= 100000) return round($n / 100000, 1) . 'L';
     if ($n >= 1000) return round($n / 1000) . 'K';
     return number_format($n);
 }
 
-// Format response date
+// Format response date - handles multiple formats
 function formatResponseDate($d) {
-    if (!$d || $d === '0000-00-00' || $d === '0000-00-00 00:00:00') return '—';
-    try { return date('d-M', strtotime($d)); } catch(Exception $e) { return '—'; }
+    if (!$d || $d === '0000-00-00' || $d === '0000-00-00 00:00:00' || $d === '0000-00-00 00:00:00.000000') return '—';
+    $ts = @strtotime($d);
+    if ($ts && $ts > 0 && $ts !== false) {
+        return date('d-M', $ts);
+    }
+    // Try parsing formats like "09-Aug-2026", "09/Aug/2026", "Aug 09, 2026"
+    $clean = preg_replace('/[^\w\s\-\/\.]/', ' ', $d);
+    $ts2 = @strtotime($clean);
+    if ($ts2 && $ts2 > 0) return date('d-M', $ts2);
+    return htmlspecialchars($d);
 }
 ?>
 
@@ -161,14 +178,22 @@ function formatResponseDate($d) {
                         <td><small><?= htmlspecialchars($lead['state'] ?? '—') ?></small></td>
                         <td><small><?= htmlspecialchars($lead['existing_la'] ?? '—') ?></small></td>
                         <td class="text-end"><small><?= formatSalaryShort($lead['salary']) ?></small></td>
-                        <td class="text-end"><small><?= formatSalaryShort($lead['actual_salary']) ?></small></td>
+                        <td class="text-end"><small>
+                            <select class="form-select form-select-sm" style="width:80px;display:inline-block;font-size:0.75rem" onchange="updateField(<?= $lead['id'] ?>, 'actual_salary', this.value)">
+                                <option value="">—</option>
+                                <?php foreach ($salaryOptions as $sopt): ?>
+                                    <option value="<?= $sopt ?>" <?= formatSalaryShort($lead['actual_salary']) === $sopt ? 'selected' : '' ?>><?= $sopt ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </small></td>
                         <td><span class="badge bg-light text-dark"><?= htmlspecialchars($lead['data_type'] ?? '—') ?></span></td>
                         <td><small><?= htmlspecialchars($lead['bank_name'] ?? '—') ?></small></td>
                         <td><small class="text-muted"><?= formatResponseDate($lead['response_date']) ?></small></td>
                         <td><?= statusBadge($lead['workflow_stage']) ?></td>
                         <td>
-                            <?php if (!empty($lead['disposition'])): ?>
-                                <span class="badge bg-success"><?= htmlspecialchars($lead['disposition']) ?></span>
+                            <?php $disp = $lead['disposition'] ?? $lead['agent_disposition'] ?? ''; ?>
+                            <?php if (!empty($disp)): ?>
+                                <span class="badge bg-success"><?= htmlspecialchars($disp) ?></span>
                             <?php else: ?>
                                 <span class="badge bg-secondary">Pending</span>
                             <?php endif; ?>
@@ -177,7 +202,7 @@ function formatResponseDate($d) {
                             <select class="form-select form-select-sm disposition-select" data-lead-id="<?= $lead['id'] ?>" onchange="updateDisposition(<?= $lead['id'] ?>, this.value)">
                                 <option value="">Select...</option>
                                 <?php foreach ($dispositionOptions as $opt): ?>
-                                    <option value="<?= $opt ?>" <?= ($lead['disposition'] ?? '') === $opt ? 'selected' : '' ?>><?= $opt ?></option>
+                                    <option value="<?= $opt ?>" <?= ($lead['disposition'] ?? $lead['agent_disposition'] ?? '') === $opt ? 'selected' : '' ?>><?= $opt ?></option>
                                 <?php endforeach; ?>
                             </select>
                         </td>
@@ -273,6 +298,20 @@ function updateRemark(leadId, value) {
             }
         });
     }, 800);
+}
+
+function updateField(leadId, field, value) {
+    var formData = new FormData();
+    formData.append('lead_id', leadId);
+    formData.append('field', field);
+    formData.append('value', value);
+    ajaxPost(BASE_URL + '/agent/leads/update-disposition', formData).then(function(result) {
+        if (result && result.success) {
+            showToast(field.replace('_', ' ') + ' updated.', 'success');
+        } else {
+            showToast(result.error || 'Failed to update.', 'danger');
+        }
+    });
 }
 
 function escapeHtml(text) {

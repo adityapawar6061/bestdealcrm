@@ -33,6 +33,23 @@ class AgentController extends BaseController
         ]);
     }
 
+    private function hasColumn(string $table, string $column): bool
+    {
+        static $cache = [];
+        $key = $table . '.' . $column;
+        if (isset($cache[$key])) return $cache[$key];
+        try {
+            $result = $this->db->fetchOne(
+                "SELECT COUNT(*) as cnt FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?",
+                [$table, $column]
+            );
+            $cache[$key] = ($result && (int)$result['cnt'] > 0);
+        } catch (\Throwable $e) {
+            $cache[$key] = false;
+        }
+        return $cache[$key];
+    }
+
     public function leads(): void
     {
         $user = currentUser();
@@ -43,22 +60,24 @@ class AgentController extends BaseController
         ];
         $page = (int)($_GET['page'] ?? 1);
 
+        // Only filter by disposition if column exists
+        if (!empty($filters['disposition']) && !$this->hasColumn('leads', 'disposition')) {
+            unset($filters['disposition']);
+        }
+
         $leads = $this->leadModel->getByAgent($user['id'], $filters, $page);
 
         // Disposition stats for cards
         $userId = $user['id'];
         $totalAssigned = $this->db->count('leads', 'assigned_to = ?', [$userId]);
-        $pendingDisposition = 0;
+        $pendingDisposition = $totalAssigned; // default: all are pending
         $dispositionCounts = [];
-        try {
+        if ($this->hasColumn('leads', 'disposition')) {
             $pendingDisposition = $this->db->count('leads', "assigned_to = ? AND (disposition IS NULL OR disposition = '')", [$userId]);
             $dispositionCounts = $this->db->fetchAll(
                 "SELECT disposition, COUNT(*) as cnt FROM leads WHERE assigned_to = ? AND disposition IS NOT NULL AND disposition != '' GROUP BY disposition ORDER BY cnt DESC",
                 [$userId]
             );
-        } catch (\Throwable $e) {
-            // disposition column may not exist yet - ignore
-            error_log('Disposition column missing: ' . $e->getMessage());
         }
 
         $this->view('agent/leads', [
@@ -386,7 +405,9 @@ class AgentController extends BaseController
 
         $leadId = (int)($_POST['lead_id'] ?? 0);
         $disposition = trim($_POST['disposition'] ?? '');
-        $agentRemark = trim($_POST['agent_remark'] ?? null);
+        $agentRemark = $_POST['agent_remark'] ?? null;
+        $field = trim($_POST['field'] ?? '');
+        $value = trim($_POST['value'] ?? '');
         $user = currentUser();
 
         $lead = $this->leadModel->findById($leadId);
@@ -396,21 +417,27 @@ class AgentController extends BaseController
         }
 
         $updateData = ['updated_at' => date('Y-m-d H:i:s')];
-        if ($disposition !== null && $disposition !== '') {
+
+        // Handle disposition update
+        if ($disposition !== '' && $this->hasColumn('leads', 'agent_disposition')) {
             $updateData['agent_disposition'] = $disposition;
-            try { $updateData['disposition'] = $disposition; } catch (\Throwable $e) {}
         }
-        if ($agentRemark !== null) {
+        if ($disposition !== '' && $this->hasColumn('leads', 'disposition')) {
+            $updateData['disposition'] = $disposition;
+        }
+        if ($agentRemark !== null && $this->hasColumn('leads', 'agent_remark')) {
             $updateData['agent_remark'] = $agentRemark;
         }
 
-        try {
-            $this->db->update('leads', $updateData, 'id = ?', [$leadId]);
-        } catch (\Throwable $e) {
-            // Fallback: update only columns that exist
-            unset($updateData['disposition']);
-            $this->db->update('leads', $updateData, 'id = ?', [$leadId]);
+        // Handle generic field update (e.g., actual_salary)
+        if ($field && isset($lead[$field])) {
+            $allowedFields = ['actual_salary', 'salary', 'existing_la', 'remark'];
+            if (in_array($field, $allowedFields)) {
+                $updateData[$field] = $value ?: null;
+            }
         }
+
+        $this->db->update('leads', $updateData, 'id = ?', [$leadId]);
         logActivity($user['id'], 'disposition_updated', 'lead', $leadId, null, json_encode(['disposition' => $disposition]));
 
         $this->json(['success' => true, 'message' => 'Updated.']);
