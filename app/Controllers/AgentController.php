@@ -262,7 +262,8 @@ class AgentController extends BaseController
         $total = $this->db->count('leads l', $where, $params);
         $sql = "SELECT l.id, l.customer_name, l.mobile_number, l.location, l.state, 
                        l.existing_la, l.salary, l.actual_salary, l.bank_name, 
-                       l.current_status, l.workflow_stage, l.created_at, l.updated_at
+                       l.current_status, l.workflow_stage, l.created_at, l.updated_at,
+                       l.response_date, l.data_type, l.agent_disposition, l.agent_remark
                 FROM leads l WHERE {$where} ORDER BY l.created_at DESC LIMIT {$length} OFFSET {$start}";
         $data = $this->db->fetchAll($sql, $params);
 

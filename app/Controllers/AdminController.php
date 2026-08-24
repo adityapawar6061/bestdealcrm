@@ -545,10 +545,10 @@ class AdminController extends BaseController
             return;
         }
 
-        // Filtered leads data
+        // Filtered leads data - only UNASSIGNED leads
         $page = max(1, (int)($_GET['page'] ?? 1));
         $perPage = min(500, max(1, (int)($_GET['per_page'] ?? 50)));
-        $where = '1=1';
+        $where = 'l.assigned_to IS NULL';
         $params = [];
 
         if (!empty($_GET['location'])) {
@@ -587,7 +587,8 @@ class AdminController extends BaseController
         $sql = "SELECT l.id, l.customer_name, l.mobile_number, l.location, l.state,
                        l.existing_la, l.salary, l.actual_salary, l.dtmf_input,
                        l.response_date, l.data_type, l.bank_name, l.current_status,
-                       l.update_status, l.remark, l.workflow_stage, l.created_at
+                       l.update_status, l.remark, l.workflow_stage, l.created_at,
+                       l.agent_disposition, l.agent_remark
                 FROM leads l
                 WHERE {$where}
                 ORDER BY l.created_at DESC

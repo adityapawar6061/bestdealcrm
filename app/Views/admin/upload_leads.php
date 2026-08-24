@@ -139,6 +139,18 @@
                             <label class="form-check-label small" for="col_pan_number">PAN Number</label>
                         </div>
                     </div>
+                    <div class="col-md-4 col-lg-3">
+                        <div class="form-check card card-body p-2 mb-0 border">
+                            <input class="form-check-input col-check" type="checkbox" value="agent_disposition" id="col_agent_disposition">
+                            <label class="form-check-label small" for="col_agent_disposition">Agent Disposition</label>
+                        </div>
+                    </div>
+                    <div class="col-md-4 col-lg-3">
+                        <div class="form-check card card-body p-2 mb-0 border">
+                            <input class="form-check-input col-check" type="checkbox" value="agent_remark" id="col_agent_remark">
+                            <label class="form-check-label small" for="col_agent_remark">Agent Remarks</label>
+                        </div>
+                    </div>
                 </div>
 
                 <div class="mt-2">
@@ -268,7 +280,9 @@ var DB_FIELDS = {
     'current_status':  'Current Status',
     'update_status':   'Update Status',
     'remark':          'Remark',
-    'pan_number':      'PAN Number'
+    'pan_number':      'PAN Number',
+    'agent_disposition': 'Agent Disposition',
+    'agent_remark':      'Agent Remarks'
 };
 
 function toggleAllColumns(state) {
