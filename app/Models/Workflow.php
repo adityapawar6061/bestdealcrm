@@ -42,13 +42,13 @@ class Workflow
         ?string $action = null
     ): void {
         // Update lead stage
-        Database::getInstance()->update('leads', [
+        \Database::getInstance()->update('leads', [
             'workflow_stage' => $toStage,
             'updated_at'     => date('Y-m-d H:i:s'),
         ], 'id = ?', [$leadId]);
 
         // Record in workflow history
-        Database::getInstance()->insert('workflow_history', [
+        \Database::getInstance()->insert('workflow_history', [
             'lead_id'        => $leadId,
             'previous_stage' => $fromStage,
             'new_stage'      => $toStage,
@@ -65,7 +65,7 @@ class Workflow
 
     public function getHistory(int $leadId): array
     {
-        return Database::getInstance()->fetchAll(
+        return \Database::getInstance()->fetchAll(
             "SELECT wh.*, u.name as performed_by_name 
              FROM workflow_history wh 
              LEFT JOIN users u ON wh.performed_by = u.id 
@@ -85,7 +85,7 @@ class Workflow
             $params[] = $assignedTo;
         }
 
-        return Database::getInstance()->fetchAll(
+        return \Database::getInstance()->fetchAll(
             "SELECT l.*, u.name as assigned_to_name 
              FROM leads l 
              LEFT JOIN users u ON l.assigned_to = u.id 

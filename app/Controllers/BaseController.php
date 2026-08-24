@@ -1,7 +1,9 @@
 <?php
+namespace Controllers;
+
 /**
  * Base Controller
- * Session.php and Helpers.php are loaded by index.php before this file runs.
+ * Session.php and Helpers.php are loaded by index.php before any controller runs.
  */
 
 class BaseController
