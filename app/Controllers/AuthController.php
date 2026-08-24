@@ -32,6 +32,13 @@ class AuthController extends BaseController
             return;
         }
 
+        // Check DB connection
+        if (!$this->db || !$this->db->getConnection()) {
+            setFlash('error', 'Database connection failed. Please check configuration.');
+            $this->redirect('/login');
+            return;
+        }
+
         // Rate limiting check (simple session-based)
         $attempts = $_SESSION['login_attempts'] ?? 0;
         $lastAttempt = $_SESSION['last_login_attempt'] ?? 0;
@@ -91,7 +98,7 @@ class AuthController extends BaseController
 
         } catch (\Exception $e) {
             error_log("Login error: " . $e->getMessage());
-            setFlash('error', 'An error occurred. Please try again.');
+            setFlash('error', 'Error: ' . $e->getMessage());
             $this->redirect('/login');
         }
     }
