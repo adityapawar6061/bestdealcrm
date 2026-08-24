@@ -13,10 +13,10 @@ class Database
 
     private function __construct()
     {
-        $host = env('DB_HOST', 'localhost');
+        $host = env('DB_HOST', '68.178.237.250');
         $dbName = env('DB_NAME', 'bestdealcrm');
-        $username = env('DB_USER', 'root');
-        $password = env('DB_PASS', '');
+        $username = env('DB_USER', 'sayali');
+        $password = env('DB_PASS', 'sayali@1234');
         $charset = env('DB_CHARSET', 'utf8mb4');
 
         $dsn = "mysql:host={$host};dbname={$dbName};charset={$charset}";
@@ -59,6 +59,9 @@ class Database
      */
     public function query(string $sql, array $params = []): PDOStatement
     {
+        if ($this->pdo === null) {
+            throw new \RuntimeException('Database connection not available. Check DB credentials.');
+        }
         $stmt = $this->pdo->prepare($sql);
         $stmt->execute($params);
         return $stmt;
