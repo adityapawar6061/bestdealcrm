@@ -279,39 +279,87 @@ class AdminController extends BaseController
 
     public function processUpload(): void
     {
-        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-            $this->json(['error' => 'Invalid request.'], 405);
-            return;
-        }
+        try {
+            if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+                $this->json(['error' => 'Invalid request.'], 405);
+                return;
+            }
 
-        if (!isset($_FILES['lead_file'])) {
-            $this->json(['error' => 'No file uploaded.'], 400);
-            return;
-        }
+            if (!isset($_FILES['lead_file'])) {
+                $this->json(['error' => 'No file uploaded.'], 400);
+                return;
+            }
 
-        $file = $_FILES['lead_file'];
-        $ext = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
+            $file = $_FILES['lead_file'];
 
-        if (!in_array($ext, ['csv', 'xlsx'])) {
-            $this->json(['error' => 'Only CSV and XLSX files are allowed.'], 400);
-            return;
-        }
+            // Check upload errors
+            if ($file['error'] !== UPLOAD_ERR_OK) {
+                $errorMessages = [
+                    UPLOAD_ERR_INI_SIZE   => 'File exceeds server upload limit.',
+                    UPLOAD_ERR_FORM_SIZE  => 'File exceeds form upload limit.',
+                    UPLOAD_ERR_PARTIAL    => 'File was only partially uploaded.',
+                    UPLOAD_ERR_NO_FILE    => 'No file was uploaded.',
+                    UPLOAD_ERR_NO_TMP_DIR => 'Server missing temp folder.',
+                    UPLOAD_ERR_CANT_WRITE => 'Server failed to write file.',
+                ];
+                $msg = $errorMessages[$file['error']] ?? 'Unknown upload error (' . $file['error'] . ').';
+                $this->json(['error' => $msg], 400);
+                return;
+            }
 
-        // Save upload record
-        $uploadId = $this->db->insert('lead_uploads', [
-            'filename'     => $file['name'],
-            'uploaded_by'  => currentUser()['id'],
-            'status'       => 'processing',
-            'created_at'   => date('Y-m-d H:i:s'),
-        ]);
+            // Check file size (10MB max)
+            if ($file['size'] > 10 * 1024 * 1024) {
+                $this->json(['error' => 'File too large. Maximum 10MB allowed.'], 400);
+                return;
+            }
 
-        // Read file and parse
-        $filePath = $file['tmp_name'];
-        $rows = [];
-        
-        if ($ext === 'csv') {
+            $ext = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
+            if (!in_array($ext, ['csv'])) {
+                $this->json(['error' => 'Only CSV files are allowed.'], 400);
+                return;
+            }
+
+            // Ensure lead_uploads table exists
+            $this->db->query("CREATE TABLE IF NOT EXISTS `lead_uploads` (
+                `id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+                `filename` VARCHAR(255),
+                `uploaded_by` INT UNSIGNED,
+                `status` ENUM('processing', 'completed', 'failed', 'empty') DEFAULT 'processing',
+                `total_rows` INT DEFAULT 0,
+                `imported` INT DEFAULT 0,
+                `skipped` INT DEFAULT 0,
+                `error_log` TEXT,
+                `completed_at` TIMESTAMP NULL,
+                `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+            // Save upload record
+            $userId = currentUser()['id'] ?? 1;
+            $uploadId = $this->db->insert('lead_uploads', [
+                'filename'     => $file['name'],
+                'uploaded_by'  => $userId,
+                'status'       => 'processing',
+                'created_at'   => date('Y-m-d H:i:s'),
+            ]);
+
+            // Read CSV file
+            $filePath = $file['tmp_name'];
+            $rows = [];
+
             if (($handle = fopen($filePath, 'r')) !== false) {
+                // Handle BOM
+                $bom = fread($handle, 3);
+                if ($bom !== "\xef\xbb\xbf") {
+                    rewind($handle);
+                }
                 $headers = fgetcsv($handle);
+                if ($headers === false || empty($headers)) {
+                    fclose($handle);
+                    $this->json(['error' => 'Could not read CSV headers.'], 400);
+                    return;
+                }
+                // Clean BOM from first header
+                $headers[0] = preg_replace('/^\xEF\xBB\xBF/', '', $headers[0]);
                 while (($row = fgetcsv($handle)) !== false) {
                     if (count($row) === count($headers)) {
                         $rows[] = array_combine($headers, $row);
@@ -319,44 +367,44 @@ class AdminController extends BaseController
                 }
                 fclose($handle);
             }
-        } elseif ($ext === 'xlsx') {
-            // Basic XLSX reading - for production use PhpSpreadsheet
-            $this->json(['error' => 'XLSX support requires PhpSpreadsheet library. Please upload CSV.'], 400);
-            return;
+
+            if (empty($rows)) {
+                $this->db->update('lead_uploads', ['status' => 'empty'], 'id = ?', [$uploadId]);
+                $this->json(['error' => 'No data rows found in CSV. Check that the file has data rows with matching column counts.'], 400);
+                return;
+            }
+
+            // Return columns for mapping
+            $columns = array_keys($rows[0]);
+            $_SESSION['upload_rows'] = $rows;
+            $_SESSION['upload_id'] = $uploadId;
+
+            // Also save uploaded file to disk as backup (for session recovery)
+            $uploadDir = ROOT_PATH . '/public/uploads/leads';
+            if (!is_dir($uploadDir)) {
+                @mkdir($uploadDir, 0755, true);
+            }
+            if (is_dir($uploadDir)) {
+                @copy($file['tmp_name'], $uploadDir . '/upload_' . $uploadId . '.csv');
+            }
+
+            $this->json([
+                'success' => true,
+                'columns' => $columns,
+                'sample'  => array_slice($rows, 0, 5),
+                'total'   => count($rows),
+                'upload_id' => $uploadId,
+            ]);
+
+        } catch (\Throwable $e) {
+            error_log('processUpload ERROR: ' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine());
+            $this->json(['error' => 'Upload failed: ' . $e->getMessage()], 500);
         }
-
-        if (empty($rows)) {
-            $this->db->update('lead_uploads', ['status' => 'empty'], 'id = ?', [$uploadId]);
-            $this->json(['error' => 'No data found in file.'], 400);
-            return;
-        }
-
-        // Return columns for mapping
-        $columns = array_keys($rows[0]);
-        $_SESSION['upload_rows'] = $rows;
-        $_SESSION['upload_id'] = $uploadId;
-
-        // Also save uploaded file to disk as backup (for session recovery)
-        $uploadDir = ROOT_PATH . '/public/uploads/leads';
-        if (!is_dir($uploadDir)) mkdir($uploadDir, 0755, true);
-        $diskFile = $uploadDir . '/upload_' . $uploadId . '.csv';
-        if ($ext === 'csv') {
-            copy($file['tmp_name'], $diskFile);
-        } else {
-            move_uploaded_file($file['tmp_name'], $diskFile);
-        }
-
-        $this->json([
-            'success' => true,
-            'columns' => $columns,
-            'sample'  => array_slice($rows, 0, 5),
-            'total'   => count($rows),
-            'upload_id' => $uploadId,
-        ]);
     }
 
     public function processMapping(): void
     {
+    try {
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
             $this->json(['error' => 'Invalid request method.'], 405);
             return;
@@ -454,6 +502,10 @@ class AdminController extends BaseController
             error_log("Upload processing error: " . $e->getMessage() . " in " . $e->getFile() . ':' . $e->getLine());
             $this->json(['error' => 'Import failed: ' . $e->getMessage()], 500);
         }
+    } catch (\Throwable $e) {
+        error_log('processMapping FATAL: ' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine());
+        $this->json(['error' => 'Import failed: ' . $e->getMessage()], 500);
+    }
     }
 
     // ========== LEAD ASSIGNMENT ==========
