@@ -4,11 +4,13 @@
  * Common functionality for all controllers
  */
 
-require_once ROOT_PATH . '/app/Helpers/Session.php';
+if (file_exists(ROOT_PATH . '/app/Helpers/Session.php') && !class_exists('Session')) {
+    require_once ROOT_PATH . '/app/Helpers/Session.php';
+}
 
 class BaseController
 {
-    protected Database $db;
+    protected $db;
 
     public function __construct()
     {
