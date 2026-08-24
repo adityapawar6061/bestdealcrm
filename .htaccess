@@ -2,7 +2,7 @@ RewriteEngine On
 RewriteBase /bestdealcrm/
 
 # Allow direct access to root-level PHP files (no auth required)
-RewriteCond %{REQUEST_URI} ^/bestdealcrm/(install|reset_password|git_fix)\.php$
+RewriteCond %{REQUEST_URI} ^/bestdealcrm/(install|reset_password|git_fix|diagnose)\.php$
 RewriteRule ^ - [L]
 
 # Allow direct access to files that exist
