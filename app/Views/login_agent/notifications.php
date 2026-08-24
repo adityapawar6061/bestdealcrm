@@ -5,8 +5,8 @@
     <?php else: ?>
         <?php foreach ($notifications as $notif): ?>
         <div class="d-flex align-items-start gap-3 p-3 border-bottom <?= $notif['is_read'] ? '' : 'bg-light' ?>" id="notif-<?= $notif['id'] ?>">
-            <div class="rounded-circle d-flex align-items-center justify-content-center flex-shrink-0" style="width:40px;height:40px;background:<?= $notif['type'] === 'success' ? '#dcfce7' : $notif['type'] === 'warning' ? '#fef3c7' : '#dbeafe' ?>">
-                <i class="bi bi-<?= $notif['type'] === 'success' ? 'check-circle text-success' : $notif['type'] === 'warning' ? 'exclamation-triangle text-warning' : 'info-circle text-primary' ?>"></i>
+            <div class="rounded-circle d-flex align-items-center justify-content-center flex-shrink-0" style="width:40px;height:40px;background:<?= ($notif['type'] === 'success' ? '#dcfce7' : ($notif['type'] === 'warning' ? '#fef3c7' : '#dbeafe')) ?>">
+                <i class="bi bi-<?= ($notif['type'] === 'success' ? 'check-circle text-success' : ($notif['type'] === 'warning' ? 'exclamation-triangle text-warning' : 'info-circle text-primary')) ?>"></i>
             </div>
             <div class="flex-grow-1">
                 <div class="fw-semibold small"><?= htmlspecialchars($notif['title']) ?></div>

@@ -199,12 +199,14 @@
             <div class="d-flex align-items-center gap-3">
                 <?php 
                 $notifCount = unreadNotificationCount();
-                $rolePrefix = $role === 'admin' ? 'admin' : 
-                              $role === 'agent' ? 'agent' : 
-                              $role === 'login_agent' ? 'login-agent' : 
-                              $role === 'team_leader' ? 'team-leader' :
-                              $role === 'underwriting' ? 'underwriting' :
-                              $role === 'dispatch' ? 'dispatch' : 'admin';
+                switch ($role) {
+                    case 'agent': $rolePrefix = 'agent'; break;
+                    case 'login_agent': $rolePrefix = 'login-agent'; break;
+                    case 'team_leader': $rolePrefix = 'team-leader'; break;
+                    case 'underwriting': $rolePrefix = 'underwriting'; break;
+                    case 'dispatch': $rolePrefix = 'dispatch'; break;
+                    default: $rolePrefix = 'admin';
+                }
                 ?>
                 <a href="/bestdealcrm/<?= $rolePrefix ?>/notifications" class="position-relative text-decoration-none">
                     <i class="bi bi-bell fs-5 text-muted"></i>
