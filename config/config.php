@@ -7,7 +7,8 @@
 function loadEnv(string $path): void
 {
     if (!file_exists($path)) {
-        throw new RuntimeException("Environment file not found: {$path}");
+        // .env may not exist on server - fall back to defaults in database.php
+        return;
     }
 
     $lines = file($path, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
