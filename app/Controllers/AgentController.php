@@ -75,8 +75,9 @@ class AgentController extends BaseController
     /**
      * Show the agent lead form for filling
      */
-    public function fillForm(int $leadId): void
+    public function fillForm(int $id): void
     {
+        $leadId = $id;
         $user = currentUser();
         $lead = $this->leadModel->findById($leadId);
 

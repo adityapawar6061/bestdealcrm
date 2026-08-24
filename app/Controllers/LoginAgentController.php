@@ -55,8 +55,9 @@ class LoginAgentController extends BaseController
     /**
      * Pre-Login Checklist form
      */
-    public function preLoginChecklist(int $leadId): void
+    public function preLoginChecklist(int $id): void
     {
+        $leadId = $id;
         $user = currentUser();
         $lead = $this->leadModel->findById($leadId);
 
@@ -247,8 +248,9 @@ class LoginAgentController extends BaseController
     /**
      * Post-Login form
      */
-    public function postLogin(int $leadId): void
+    public function postLogin(int $id): void
     {
+        $leadId = $id;
         $user = currentUser();
         $lead = $this->leadModel->findById($leadId);
 
