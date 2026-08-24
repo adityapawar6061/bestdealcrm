@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Login - BestDeal CRM</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.2/font/bootstrap-icons.css" rel="stylesheet">
     <style>
         body { background: linear-gradient(135deg, #1e293b 0%, #334155 100%); min-height: 100vh; display: flex; align-items: center; justify-content: center; font-family: 'Segoe UI', sans-serif; }
         .login-card { background: #fff; border-radius: 16px; box-shadow: 0 20px 60px rgba(0,0,0,0.3); overflow: hidden; max-width: 420px; width: 100%; }
@@ -22,46 +21,80 @@
 <body>
     <div class="login-card">
         <div class="login-header">
-            <i class="bi bi-building fs-1 mb-2"></i>
             <h2>BestDeal CRM</h2>
             <p>Loan Processing Management System</p>
         </div>
         <div class="login-body">
-            <?php if (!empty($error)): ?>
-                <div class="alert alert-danger alert-dismissible fade show py-2">
-                    <small><i class="bi bi-exclamation-circle me-1"></i><?= htmlspecialchars($error) ?></small>
-                    <button type="button" class="btn-close btn-close-sm" data-bs-dismiss="alert"></button>
-                </div>
+            <?php $error = getFlash('error'); $success = getFlash('success'); ?>
+            <?php if ($error): ?>
+                <div class="alert alert-danger py-2"><small><?= htmlspecialchars($error) ?></small></div>
             <?php endif; ?>
-            <?php if (!empty($success)): ?>
-                <div class="alert alert-success alert-dismissible fade show py-2">
-                    <small><?= htmlspecialchars($success) ?></small>
-                    <button type="button" class="btn-close btn-close-sm" data-bs-dismiss="alert"></button>
-                </div>
+            <?php if ($success): ?>
+                <div class="alert alert-success py-2"><small><?= htmlspecialchars($success) ?></small></div>
+            <?php endif; ?>
+            
+            <?php if ($_SERVER['REQUEST_METHOD'] === 'POST'): ?>
+                <?php
+                // Process login
+                $username = trim($_POST['username'] ?? '');
+                $password = $_POST['password'] ?? '';
+                
+                if ($username && $password) {
+                    $stmt = $pdo->prepare("SELECT u.*, r.name as role_name FROM users u JOIN roles r ON u.role_id=r.id WHERE (u.username=? OR u.email=?) AND u.status='active'");
+                    $stmt->execute([$username, $username]);
+                    $user = $stmt->fetch();
+                    
+                    if ($user && password_verify($password, $user['password_hash'])) {
+                        session_regenerate_id(true);
+                        $_SESSION['user_id'] = $user['id'];
+                        $_SESSION['user_name'] = $user['name'];
+                        $_SESSION['user_email'] = $user['email'];
+                        $_SESSION['username'] = $user['username'];
+                        $_SESSION['role_id'] = $user['role_id'];
+                        $_SESSION['role_name'] = $user['role_name'];
+                        
+                        // Update last login
+                        $pdo->prepare("UPDATE users SET last_login_at=NOW() WHERE id=?")->execute([$user['id']]);
+                        
+                        // Log login
+                        $pdo->prepare("INSERT INTO login_logs (user_id, ip_address, user_agent) VALUES (?, ?, ?)")
+                            ->execute([$user['id'], $_SERVER['REMOTE_ADDR'] ?? '', $_SERVER['HTTP_USER_AGENT'] ?? '']);
+                        
+                        // Redirect based on role
+                        $base = '/bestdealcrm';
+                        $dash = [
+                            'admin' => '/admin/dashboard',
+                            'agent' => '/agent/dashboard',
+                            'login_agent' => '/login-agent/dashboard',
+                        ];
+                        header('Location: ' . $base . ($dash[$user['role_name']] ?? '/admin/dashboard'));
+                        exit;
+                    } else {
+                        setFlash('error', 'Invalid username or password.');
+                        header('Location: /bestdealcrm/login');
+                        exit;
+                    }
+                } else {
+                    setFlash('error', 'Please enter username and password.');
+                    header('Location: /bestdealcrm/login');
+                    exit;
+                }
+                ?>
             <?php endif; ?>
             
             <form method="POST" action="/bestdealcrm/login">
                 <?= csrfField() ?>
                 <div class="mb-3">
                     <label class="form-label text-muted small">Username or Email</label>
-                    <div class="input-group">
-                        <span class="input-group-text bg-light"><i class="bi bi-person"></i></span>
-                        <input type="text" name="username" class="form-control" placeholder="Enter username" required autofocus value="<?= htmlspecialchars($_POST['username'] ?? '') ?>">
-                    </div>
+                    <input type="text" name="username" class="form-control" placeholder="Enter username" required autofocus>
                 </div>
                 <div class="mb-4">
                     <label class="form-label text-muted small">Password</label>
-                    <div class="input-group">
-                        <span class="input-group-text bg-light"><i class="bi bi-lock"></i></span>
-                        <input type="password" name="password" class="form-control" placeholder="Enter password" required>
-                    </div>
+                    <input type="password" name="password" class="form-control" placeholder="Enter password" required>
                 </div>
-                <button type="submit" class="btn btn-login btn-primary w-100">
-                    <i class="bi bi-box-arrow-in-right me-1"></i> Sign In
-                </button>
+                <button type="submit" class="btn btn-login btn-primary w-100">Sign In</button>
             </form>
         </div>
     </div>
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
 </body>
 </html>
