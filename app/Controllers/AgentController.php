@@ -117,6 +117,19 @@ class AgentController extends BaseController
             }
         }
 
+        // Auto-fill agent_name fields with logged-in user's name
+        foreach ($form['sections'] as &$section) {
+            foreach ($section['fields'] as &$field) {
+                $fn = strtolower($field['field_name'] ?? '');
+                $fl = strtolower($field['label'] ?? '');
+                if (strpos($fn, 'agent_name') !== false || strpos($fl, 'agent name') !== false || strpos($fl, 'agent_name') !== false) {
+                    if (empty($existingValues[$field['id']])) {
+                        $existingValues[$field['id']] = $user['name'];
+                    }
+                }
+            }
+        }
+
         $this->view('agent/fill_form', [
             'title'          => 'Fill Lead Form',
             'lead'           => $lead,
