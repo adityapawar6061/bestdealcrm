@@ -118,23 +118,23 @@ class AgentController extends BaseController
         }
 
         // Pre-fill fields from lead data and auto-fill agent name
-        // Map form field_name to lead column name for auto-fill
-        $leadFieldMap = [
-            'customer_name' => 'customer_name',
-            'mobile_number' => 'mobile_number',
-            'location' => 'location',
-            'state' => 'state',
-            'existing_la' => 'existing_la',
-            'salary' => 'salary',
-            'actual_salary' => 'actual_salary',
-            'dtmf_input' => 'dtmf_input',
-            'response_date' => 'response_date',
-            'data_type' => 'data_type',
-            'bank_name' => 'bank_name',
-            'pan_number' => 'pan_number',
-            'current_status' => 'current_status',
-            'update_status' => 'update_status',
-            'remark' => 'remark',
+        // Map label keywords to lead column names for robust matching
+        $labelToLead = [
+            'customer name'   => 'customer_name',
+            'mobile'          => 'mobile_number',
+            'location'        => 'location',
+            'state'           => 'state',
+            'existing la'     => 'existing_la',
+            'salary'          => 'salary',
+            'actual salary'   => 'actual_salary',
+            'dtmf'            => 'dtmf_input',
+            'response date'   => 'response_date',
+            'data type'       => 'data_type',
+            'bank name'       => 'bank_name',
+            'pan number'      => 'pan_number',
+            'current status'  => 'current_status',
+            'update status'   => 'update_status',
+            'remark'          => 'remark',
         ];
 
         foreach ($form['sections'] as &$section) {
@@ -142,16 +142,28 @@ class AgentController extends BaseController
                 $fn = strtolower(trim($field['field_name'] ?? ''));
                 $fl = strtolower(trim($field['label'] ?? ''));
 
-                // Pre-fill from lead data if field_name matches a lead column
-                if (empty($existingValues[$field['id']]) && isset($leadFieldMap[$fn])) {
-                    $leadVal = $lead[$leadFieldMap[$fn]] ?? '';
-                    if ($leadVal !== null && $leadVal !== '') {
-                        $existingValues[$field['id']] = $leadVal;
+                // Pre-fill from lead data - match by field_name OR label
+                if (empty($existingValues[$field['id']])) {
+                    $leadCol = null;
+                    // Direct field_name match
+                    if (isset($labelToLead[$fn])) {
+                        $leadCol = $labelToLead[$fn];
+                    } else {
+                        // Label-based fuzzy match
+                        foreach ($labelToLead as $keyword => $col) {
+                            if (strpos($fl, $keyword) !== false || strpos($fn, str_replace(' ', '_', $keyword)) !== false) {
+                                $leadCol = $col;
+                                break;
+                            }
+                        }
+                    }
+                    if ($leadCol && isset($lead[$leadCol]) && $lead[$leadCol] !== null && $lead[$leadCol] !== '') {
+                        $existingValues[$field['id']] = $lead[$leadCol];
                     }
                 }
 
                 // Auto-fill agent name fields
-                if (empty($existingValues[$field['id']]) && (strpos($fn, 'agent_name') !== false || strpos($fl, 'agent name') !== false || strpos($fl, 'agent_name') !== false)) {
+                if (empty($existingValues[$field['id']]) && (strpos($fn, 'agent_name') !== false || strpos($fn, 'agent name') !== false || strpos($fl, 'agent name') !== false || strpos($fl, 'agent_name') !== false)) {
                     $existingValues[$field['id']] = $user['name'];
                 }
             }

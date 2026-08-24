@@ -134,6 +134,13 @@ $sortedSections = array_merge($sortedSections, $otherSections);
                 <?php
                 $value = $existingValues[$field['id']] ?? $field['default_value'] ?? '';
                 $fieldName = "form_data[{$field['id']}]";
+                $fn = strtolower($field['field_name'] ?? '');
+                $fl = strtolower($field['label'] ?? '');
+
+                // Auto-fill agent name
+                if (empty($value) && (strpos($fn, 'agent_name') !== false || strpos($fl, 'agent name') !== false)) {
+                    $value = currentUser()['name'];
+                }
 
                 // Determine if this field should be read-only
                 $fieldReadOnly = false;
@@ -141,15 +148,8 @@ $sortedSections = array_merge($sortedSections, $otherSections);
                     $fieldReadOnly = true;
                 } elseif ($isAdminSection) {
                     $fieldReadOnly = true;
-                } elseif (strpos($fn, 'agent_name') !== false || strpos($fl, 'agent name') !== false) {
+                } elseif (strpos($fn, 'agent_name') !== false || strpos($fn, 'product_type') !== false || strpos($fl, 'agent name') !== false || strpos($fl, 'product type') !== false) {
                     $fieldReadOnly = true;
-                }
-
-                // Auto-fill agent name
-                $fn = strtolower($field['field_name'] ?? '');
-                $fl = strtolower($field['label'] ?? '');
-                if (empty($value) && (strpos($fn, 'agent_name') !== false || strpos($fl, 'agent name') !== false)) {
-                    $value = currentUser()['name'];
                 }
 
                 $roAttr = $fieldReadOnly ? 'readonly disabled' : '';
