@@ -80,20 +80,18 @@ class AgentController extends BaseController
         $dispositionCounts = [];
 
         if ($hasDisposition || $hasAgentDisposition) {
-            // Build pending condition from whichever columns exist
             $pendingParts = [];
-            if ($hasDisposition) $pendingParts[] = '(disposition IS NULL OR disposition = \"\")';
-            if ($hasAgentDisposition) $pendingParts[] = '(agent_disposition IS NULL OR agent_disposition = \"\")';
+            if ($hasDisposition) $pendingParts[] = "(disposition IS NULL OR disposition = '')";
+            if ($hasAgentDisposition) $pendingParts[] = "(agent_disposition IS NULL OR agent_disposition = '')";
             $pendingSql = implode(' AND ', $pendingParts);
             $pendingDisposition = (int)$this->db->fetchOne(
                 "SELECT COUNT(*) as cnt FROM leads WHERE assigned_to = ? AND {$pendingSql}",
                 [$userId]
             )['cnt'];
 
-            // Group by whichever column has data
             $dispCol = $hasDisposition ? 'disposition' : 'agent_disposition';
             $dispositionCounts = $this->db->fetchAll(
-                "SELECT {$dispCol} as disposition, COUNT(*) as cnt FROM leads WHERE assigned_to = ? AND {$dispCol} IS NOT NULL AND {$dispCol} != \"\" GROUP BY {$dispCol} ORDER BY cnt DESC",
+                "SELECT {$dispCol} as disposition, COUNT(*) as cnt FROM leads WHERE assigned_to = ? AND {$dispCol} IS NOT NULL AND {$dispCol} != '' GROUP BY {$dispCol} ORDER BY cnt DESC",
                 [$userId]
             );
         }
@@ -438,7 +436,21 @@ class AgentController extends BaseController
             $updateData = ['updated_at' => date('Y-m-d H:i:s')];
             $existingCols = $this->getExistingColumns('leads');
 
-            // Handle disposition update — try both columns
+            // Auto-create columns if missing
+            $neededCols = ['agent_disposition' => "VARCHAR(100) DEFAULT NULL", 'disposition' => "VARCHAR(100) DEFAULT NULL", 'agent_remark' => "TEXT DEFAULT NULL"];
+            foreach ($neededCols as $col => $def) {
+                if (!in_array($col, $existingCols)) {
+                    try {
+                        $this->db->query("ALTER TABLE `leads` ADD COLUMN `{$col}` {$def}");
+                        $existingCols[] = $col;
+                        error_log("Auto-created column leads.{$col}");
+                    } catch (\Throwable $e) {
+                        error_log("Failed to create column leads.{$col}: " . $e->getMessage());
+                    }
+                }
+            }
+
+            // Handle disposition update
             if ($disposition !== '') {
                 if (in_array('agent_disposition', $existingCols)) {
                     $updateData['agent_disposition'] = $disposition;
@@ -459,6 +471,7 @@ class AgentController extends BaseController
                 }
             }
 
+            error_log('updateDisposition leadId=' . $leadId . ' data=' . json_encode($updateData));
             $this->db->update('leads', $updateData, 'id = ?', [$leadId]);
             logActivity($user['id'], 'disposition_updated', 'lead', $leadId, null, json_encode(['disposition' => $disposition, 'field' => $field, 'value' => $value, 'updated' => array_keys($updateData)]));
 
