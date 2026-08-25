@@ -18,6 +18,9 @@ $router->get('/', 'AuthController', 'showLogin');
 // ============================================================
 $router->middleware(['AuthMiddleware'], function ($router) {
 
+    // Change Password (all roles)
+    $router->post('/change-password', 'AuthController', 'changePassword');
+
     // Dashboard redirect (role-based)
     $router->get('/dashboard', 'DashboardController', 'index');
 
@@ -102,6 +105,12 @@ $router->middleware(['AuthMiddleware'], function ($router) {
             $router->post('/form-builder/field/{id}/options/save', 'FormBuilderController', 'saveFieldOptions');
             $router->post('/form-builder/delete-with-password', 'FormBuilderController', 'deleteWithPassword');
             
+            // Cascading Filters
+            $router->get('/leads/assign/cascading-filters', 'AdminController', 'cascadingFilters');
+
+            // Change Password (all roles)
+            $router->post('/change-password', 'AdminController', 'changePassword');
+
             // Notifications
             $router->get('/notifications', 'AdminController', 'notifications');
             $router->post('/notifications/read', 'AdminController', 'readNotification');

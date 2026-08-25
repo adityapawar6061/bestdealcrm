@@ -295,6 +295,7 @@
                         <li><span class="dropdown-item-text text-muted small">Signed in as <strong><?= htmlspecialchars($user['username'] ?? '') ?></strong></span></li>
                         <li><span class="dropdown-item-text text-muted small">Role: <?= ucfirst(str_replace('_', ' ', $role)) ?></span></li>
                         <li><hr class="dropdown-divider"></li>
+                        <li><a class="dropdown-item" href="#" onclick="showChangePasswordModal()"><i class="bi bi-key me-2"></i>Change Password</a></li>
                         <li><a class="dropdown-item" href="/bestdealcrm/logout"><i class="bi bi-box-arrow-right me-2"></i>Logout</a></li>
                     </ul>
                 </div>
@@ -438,6 +439,101 @@
             });
         }
     </script>
+
+    <!-- Change Password Modal -->
+    <div class="modal fade" id="changePasswordModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title"><i class="bi bi-key me-2"></i>Change Password</h5>
+                    <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Current Password <span class="text-danger">*</span></label>
+                        <input type="password" id="cpOldPassword" class="form-control" placeholder="Enter current password" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">New Password <span class="text-danger">*</span></label>
+                        <input type="password" id="cpNewPassword" class="form-control" placeholder="Enter new password (min 6 chars)" required>
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label fw-semibold">Confirm New Password <span class="text-danger">*</span></label>
+                        <input type="password" id="cpConfirmPassword" class="form-control" placeholder="Re-enter new password" required>
+                    </div>
+                    <div id="cpError" class="alert alert-danger d-none" role="alert"></div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary btn-sm" id="cpSubmitBtn" onclick="submitChangePassword()">
+                        <i class="bi bi-check me-1"></i> Change Password
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    function showChangePasswordModal() {
+        document.getElementById('cpOldPassword').value = '';
+        document.getElementById('cpNewPassword').value = '';
+        document.getElementById('cpConfirmPassword').value = '';
+        document.getElementById('cpError').classList.add('d-none');
+        new bootstrap.Modal(document.getElementById('changePasswordModal')).show();
+    }
+
+    async function submitChangePassword() {
+        var oldPwd = document.getElementById('cpOldPassword').value;
+        var newPwd = document.getElementById('cpNewPassword').value;
+        var confirmPwd = document.getElementById('cpConfirmPassword').value;
+        var errorDiv = document.getElementById('cpError');
+        var btn = document.getElementById('cpSubmitBtn');
+
+        errorDiv.classList.add('d-none');
+
+        if (!oldPwd || !newPwd || !confirmPwd) {
+            errorDiv.textContent = 'All fields are required.';
+            errorDiv.classList.remove('d-none');
+            return;
+        }
+        if (newPwd !== confirmPwd) {
+            errorDiv.textContent = 'New password and confirmation do not match.';
+            errorDiv.classList.remove('d-none');
+            return;
+        }
+        if (newPwd.length < 6) {
+            errorDiv.textContent = 'New password must be at least 6 characters.';
+            errorDiv.classList.remove('d-none');
+            return;
+        }
+
+        btn.disabled = true;
+        btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Changing...';
+
+        var formData = new FormData();
+        formData.append('old_password', oldPwd);
+        formData.append('new_password', newPwd);
+        formData.append('confirm_password', confirmPwd);
+
+        try {
+            var result = await ajaxPost(BASE_URL + '/change-password', formData);
+            if (result && result.success) {
+                showToast(result.message || 'Password changed successfully.', 'success');
+                bootstrap.Modal.getInstance(document.getElementById('changePasswordModal')).hide();
+            } else {
+                errorDiv.textContent = result.error || 'Failed to change password.';
+                errorDiv.classList.remove('d-none');
+            }
+        } catch (err) {
+            errorDiv.textContent = 'Server error: ' + err.message;
+            errorDiv.classList.remove('d-none');
+        }
+
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-check me-1"></i> Change Password';
+    }
+    </script>
+
     <script src="/bestdealcrm/public/assets/js/app.js"></script>
 </body>
 </html>

@@ -143,30 +143,102 @@ var selectedIds = new Set();
 var currentPage = 1;
 var totalPages = 1;
 var debounceTimer = null;
+var filterDebounce = null;
 
-// Load filter options on page load
+// Load cascading filters + leads on page load
 document.addEventListener('DOMContentLoaded', function() {
-    loadFilterOptions();
+    loadCascadingFilters();
     loadFilteredLeads();
 });
 
-// Auto-load filters on Enter key
-document.getElementById('filterSearch').addEventListener('keyup', function(e) {
-    if (e.key === 'Enter') loadFilteredLeads();
-    clearTimeout(debounceTimer);
-    debounceTimer = setTimeout(loadFilteredLeads, 500);
+// Auto-apply filters on change
+document.querySelectorAll('#filterLocation, #filterState, #filterResponseDate, #filterDataType, #filterBankName').forEach(function(el) {
+    el.addEventListener('change', function() {
+        onFilterChange();
+    });
 });
 
-function loadFilterOptions() {
-    ajaxGet(BASE_URL + '/admin/leads/assign/data?get_filters=1').then(function(result) {
+document.getElementById('filterSearch').addEventListener('keyup', function(e) {
+    if (e.key === 'Enter') { onFilterChange(); return; }
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(onFilterChange, 500);
+});
+
+function onFilterChange() {
+    clearTimeout(filterDebounce);
+    filterDebounce = setTimeout(function() {
+        loadCascadingFilters();
+        loadFilteredLeads();
+    }, 100);
+}
+
+// Build params from current filter values
+function getFilterParams() {
+    var params = new URLSearchParams();
+    var loc = document.getElementById('filterLocation').value;
+    var state = document.getElementById('filterState').value;
+    var rdate = document.getElementById('filterResponseDate').value;
+    var dtype = document.getElementById('filterDataType').value;
+    var bank = document.getElementById('filterBankName').value;
+    var search = document.getElementById('filterSearch').value.trim();
+    if (loc) params.set('location', loc);
+    if (state) params.set('state', state);
+    if (rdate) params.set('response_date', rdate);
+    if (dtype) params.set('data_type', dtype);
+    if (bank) params.set('bank_name', bank);
+    if (search) params.set('search', search);
+    return params;
+}
+
+// Load cascading filter options with counts
+function loadCascadingFilters() {
+    var params = getFilterParams();
+    ajaxGet(BASE_URL + '/admin/leads/assign/cascading-filters?' + params.toString()).then(function(result) {
         if (result && result.success) {
-            populateSelect('filterLocation', result.locations || []);
-            populateSelect('filterState', result.states || []);
-            populateSelect('filterResponseDate', result.response_dates || []);
-            populateSelect('filterDataType', result.data_types || []);
-            populateSelect('filterBankName', result.bank_names || []);
+            // Remember current selections
+            var selLoc = document.getElementById('filterLocation').value;
+            var selState = document.getElementById('filterState').value;
+            var selRdate = document.getElementById('filterResponseDate').value;
+            var selDtype = document.getElementById('filterDataType').value;
+            var selBank = document.getElementById('filterBankName').value;
+
+            populateCountSelect('filterLocation', 'All Locations', result.location || [], selLoc);
+            populateCountSelect('filterState', 'All States', result.state || [], selState);
+            populateCountSelect('filterResponseDate', 'All Dates', result.response_date || [], selRdate);
+            populateCountSelect('filterDataType', 'All Types', result.data_type || [], selDtype);
+            populateCountSelect('filterBankName', 'All Banks', result.bank_name || [], selBank);
+        }
+    }).catch(function(err) {
+        console.error('Cascading filters error:', err);
+    });
+}
+
+// Populate select with counts like "HDFC (64)"
+function populateCountSelect(id, label, items, selectedValue) {
+    var select = document.getElementById(id);
+    select.innerHTML = '<option value="">' + label + ' (' + items.reduce(function(a, b) { return a + b.count; }, 0) + ')</option>';
+    items.forEach(function(item) {
+        if (item.value && item.value.trim()) {
+            var opt = document.createElement('option');
+            opt.value = item.value;
+            opt.textContent = item.value + ' (' + item.count + ')';
+            if (item.value === selectedValue) opt.selected = true;
+            select.appendChild(opt);
         }
     });
+}
+
+function resetFilters() {
+    document.getElementById('filterLocation').value = '';
+    document.getElementById('filterState').value = '';
+    document.getElementById('filterResponseDate').value = '';
+    document.getElementById('filterDataType').value = '';
+    document.getElementById('filterBankName').value = '';
+    document.getElementById('filterSearch').value = '';
+    selectedIds.clear();
+    updateSelectionUI();
+    loadCascadingFilters();
+    loadFilteredLeads();
 }
 
 function populateSelect(id, items) {
@@ -200,22 +272,9 @@ function loadFilteredLeads(page) {
     currentPage = page;
     var perPage = parseInt(document.getElementById('numRecords').value) || 50;
 
-    var params = new URLSearchParams();
+    var params = getFilterParams();
     params.set('page', page);
     params.set('per_page', perPage);
-    var loc = document.getElementById('filterLocation').value;
-    var state = document.getElementById('filterState').value;
-    var rdate = document.getElementById('filterResponseDate').value;
-    var dtype = document.getElementById('filterDataType').value;
-    var bank = document.getElementById('filterBankName').value;
-    var search = document.getElementById('filterSearch').value.trim();
-
-    if (loc) params.set('location', loc);
-    if (state) params.set('state', state);
-    if (rdate) params.set('response_date', rdate);
-    if (dtype) params.set('data_type', dtype);
-    if (bank) params.set('bank_name', bank);
-    if (search) params.set('search', search);
 
     var url = BASE_URL + '/admin/leads/assign/data?' + params.toString();
 

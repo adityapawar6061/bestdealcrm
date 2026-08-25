@@ -1208,6 +1208,124 @@ class AdminController extends BaseController
         $this->json(['success' => true, 'message' => 'Decision saved.']);
     }
 
+    // ========== CASCADE FILTER DATA ==========
+
+    public function cascadingFilters(): void
+    {
+        try {
+            $baseWhere = 'l.assigned_to IS NULL';
+            $params = [];
+
+            // Apply filters OTHER than the one being queried
+            if (!empty($_GET['location'])) {
+                $baseWhere .= ' AND l.location = ?'; $params[] = $_GET['location'];
+            }
+            if (!empty($_GET['state'])) {
+                $baseWhere .= ' AND l.state = ?'; $params[] = $_GET['state'];
+            }
+            if (!empty($_GET['response_date'])) {
+                $baseWhere .= ' AND l.response_date = ?'; $params[] = $_GET['response_date'];
+            }
+            if (!empty($_GET['data_type'])) {
+                $baseWhere .= ' AND l.data_type = ?'; $params[] = $_GET['data_type'];
+            }
+            if (!empty($_GET['bank_name'])) {
+                $baseWhere .= ' AND l.bank_name = ?'; $params[] = $_GET['bank_name'];
+            }
+            if (!empty($_GET['search'])) {
+                $s = '%' . $_GET['search'] . '%';
+                $baseWhere .= ' AND (l.customer_name LIKE ? OR l.mobile_number LIKE ? OR l.id = ?)';
+                $params[] = $s; $params[] = $s; $params[] = (int)$_GET['search'];
+            }
+
+            // For each filter, count values WITHOUT that filter applied
+            $filters = [
+                'location'      => 'location',
+                'state'         => 'state',
+                'response_date' => 'response_date',
+                'data_type'     => 'data_type',
+                'bank_name'     => 'bank_name',
+            ];
+
+            $result = [];
+            foreach ($filters as $paramName => $col) {
+                // Build WHERE excluding the current filter's param
+                $where = $baseWhere;
+                $p = $params;
+                if (!empty($_GET[$paramName])) {
+                    // Remove the last param for this filter
+                    $whereParts = explode(" AND l.{$col} = ?", $where, 2);
+                    if (count($whereParts) > 1) {
+                        $where = $whereParts[0] . $whereParts[1];
+                    }
+                    // Remove the param value from array
+                    $p = array_values(array_filter($p, function($v) use ($params, $_GET, $paramName) {
+                        return $v !== $_GET[$paramName];
+                    }));
+                }
+
+                $rows = $this->db->fetchAll(
+                    "SELECT l.{$col} as val, COUNT(*) as cnt FROM leads l WHERE {$where} AND l.{$col} IS NOT NULL AND l.{$col} != '' GROUP BY l.{$col} ORDER BY cnt DESC",
+                    $p
+                );
+                $result[$paramName] = array_map(function($r) {
+                    return ['value' => $r['val'], 'count' => (int)$r['cnt']];
+                }, $rows);
+            }
+
+            $this->json(['success' => true] + $result);
+        } catch (\Throwable $e) {
+            error_log('cascadingFilters ERROR: ' . $e->getMessage());
+            $this->json(['success' => true, 'location' => [], 'state' => [], 'response_date' => [], 'data_type' => [], 'bank_name' => []]);
+        }
+    }
+
+    // ========== CHANGE PASSWORD ==========
+
+    public function changePassword(): void
+    {
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            $this->json(['error' => 'Invalid request.'], 405);
+            return;
+        }
+
+        $user = currentUser();
+        $oldPassword = $_POST['old_password'] ?? '';
+        $newPassword = $_POST['new_password'] ?? '';
+        $confirmPassword = $_POST['confirm_password'] ?? '';
+
+        if (empty($oldPassword) || empty($newPassword) || empty($confirmPassword)) {
+            $this->json(['error' => 'All fields are required.'], 400);
+            return;
+        }
+
+        if ($newPassword !== $confirmPassword) {
+            $this->json(['error' => 'New password and confirmation do not match.'], 400);
+            return;
+        }
+
+        if (strlen($newPassword) < 6) {
+            $this->json(['error' => 'New password must be at least 6 characters.'], 400);
+            return;
+        }
+
+        // Verify old password
+        $dbUser = $this->db->fetchOne("SELECT password_hash FROM users WHERE id = ?", [$user['id']]);
+        if (!$dbUser || !password_verify($oldPassword, $dbUser['password_hash'])) {
+            $this->json(['error' => 'Current password is incorrect.'], 400);
+            return;
+        }
+
+        $this->db->update('users', [
+            'password_hash' => password_hash($newPassword, PASSWORD_DEFAULT),
+            'updated_at'    => date('Y-m-d H:i:s'),
+        ], 'id = ?', [$user['id']]);
+
+        logActivity($user['id'], 'password_changed', 'user', $user['id']);
+
+        $this->json(['success' => true, 'message' => 'Password changed successfully.']);
+    }
+
     // ========== LEAD TEMPLATES ==========
 
     public function createTemplate(): void

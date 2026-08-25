@@ -119,6 +119,63 @@ class AuthController extends BaseController
     }
 
     /**
+     * Change password (any authenticated user)
+     */
+    public function changePassword(): void
+    {
+        try {
+            if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+                $this->json(['error' => 'Invalid request.'], 405);
+                return;
+            }
+
+            $user = currentUser();
+            if (!$user) {
+                $this->json(['error' => 'Not authenticated.'], 401);
+                return;
+            }
+
+            $oldPassword = $_POST['old_password'] ?? '';
+            $newPassword = $_POST['new_password'] ?? '';
+            $confirmPassword = $_POST['confirm_password'] ?? '';
+
+            if (empty($oldPassword) || empty($newPassword) || empty($confirmPassword)) {
+                $this->json(['error' => 'All fields are required.'], 400);
+                return;
+            }
+
+            if ($newPassword !== $confirmPassword) {
+                $this->json(['error' => 'New password and confirmation do not match.'], 400);
+                return;
+            }
+
+            if (strlen($newPassword) < 6) {
+                $this->json(['error' => 'New password must be at least 6 characters.'], 400);
+                return;
+            }
+
+            // Verify old password
+            $dbUser = $this->db->fetchOne("SELECT password_hash FROM users WHERE id = ?", [$user['id']]);
+            if (!$dbUser || !password_verify($oldPassword, $dbUser['password_hash'])) {
+                $this->json(['error' => 'Current password is incorrect.'], 400);
+                return;
+            }
+
+            $this->db->update('users', [
+                'password_hash' => password_hash($newPassword, PASSWORD_DEFAULT),
+                'updated_at'    => date('Y-m-d H:i:s'),
+            ], 'id = ?', [$user['id']]);
+
+            logActivity($user['id'], 'password_changed', 'user', $user['id']);
+
+            $this->json(['success' => true, 'message' => 'Password changed successfully.']);
+        } catch (\Throwable $e) {
+            error_log('changePassword error: ' . $e->getMessage());
+            $this->json(['error' => 'Server error: ' . $e->getMessage()], 500);
+        }
+    }
+
+    /**
      * Redirect user based on their role
      */
     private function redirectBasedOnRole(): void
