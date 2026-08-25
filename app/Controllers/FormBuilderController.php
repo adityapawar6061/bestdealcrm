@@ -197,6 +197,37 @@ class FormBuilderController extends BaseController
     }
 
     /**
+     * Update a field via AJAX
+     */
+    public function updateField(int $id): void
+    {
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            $this->json(['error' => 'Invalid request.'], 405);
+            return;
+        }
+
+        try {
+            $data = [];
+            if (isset($_POST['label'])) $data['label'] = $_POST['label'];
+            if (isset($_POST['type'])) $data['type'] = $_POST['type'];
+            if (isset($_POST['required'])) $data['required'] = (int)$_POST['required'];
+            if (isset($_POST['placeholder'])) $data['placeholder'] = $_POST['placeholder'];
+            if (isset($_POST['default_value'])) $data['default_value'] = $_POST['default_value'];
+
+            if (empty($data)) {
+                $this->json(['error' => 'No data to update.'], 400);
+                return;
+            }
+
+            $this->formModel->updateField($id, $data);
+            logActivity(currentUser()['id'], 'field_updated', 'form_field', $id);
+            $this->json(['success' => true, 'message' => 'Field updated.']);
+        } catch (\Throwable $e) {
+            $this->json(['error' => 'Update failed: ' . $e->getMessage()], 500);
+        }
+    }
+
+    /**
      * Delete a field via AJAX
      */
     public function deleteField(int $id): void

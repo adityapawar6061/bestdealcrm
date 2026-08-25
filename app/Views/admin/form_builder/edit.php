@@ -26,7 +26,7 @@
                 <label class="form-label small fw-semibold">Workflow Stage</label>
                 <select name="workflow_stage" class="form-select form-select-sm">
                     <option value="">None</option>
-                    <?php foreach (['AGENT_DRAFT','LOGIN_AGENT_DRAFT','POST_LOGIN','UNDERWRITING','DISPATCH'] as $stage): ?>
+                    <?php foreach (['AGENT_DRAFT','LOGIN_AGENT_DRAFT','POST_LOGIN','ADMIN_REVIEW_3','UNDERWRITING','ADMIN_REVIEW_4','DISPATCH'] as $stage): ?>
                         <option value="<?= $stage ?>" <?= ($form['workflow_stage'] ?? '') === $stage ? 'selected' : '' ?>><?= humanStatus($stage) ?></option>
                     <?php endforeach; ?>
                 </select>
@@ -69,18 +69,18 @@
                 </thead>
                 <tbody>
                     <?php foreach ($section['fields'] as $field): ?>
-                    <tr>
+                    <tr id="field-row-<?= $field['id'] ?>">
                         <td><?= $field['display_order'] ?></td>
                         <td><code class="small"><?= htmlspecialchars($field['field_name']) ?></code></td>
                         <td><?= htmlspecialchars($field['label']) ?></td>
                         <td><span class="badge bg-secondary"><?= $field['type'] ?></span></td>
-                        <td><?= $field['required'] ? '<i class="bi bi-check text-success"></i>' : '<i class="bi bi-x text-muted"></i>' ?></td>
+                        <td><?= $field['required'] ? '<i class="bi bi-check-circle-fill text-success"></i>' : '<i class="bi bi-x text-muted"></i>' ?></td>
                         <td>
                             <?php if (in_array($field['type'], ['dropdown', 'multi-select', 'radio'])): ?>
                                 <?php if (!empty($field['options'])): ?>
                                     <small class="text-muted"><?= count($field['options']) ?> options</small>
-                                    <button class="btn btn-sm btn-outline-primary ms-1" onclick="editFieldOptions(<?= $field['id'] ?>, '<?= htmlspecialchars(addslashes($field['label'])) ?>', '<?= $field['type'] ?>')">
-                                        <i class="bi bi-pencil"></i>
+                                    <button class="btn btn-sm btn-outline-primary ms-1" onclick="editFieldOptions(<?= $field['id'] ?>, '<?= htmlspecialchars(addslashes($field['label'])) ?>', '<?= $field['type'] ?>')" title="Edit Options">
+                                        <i class="bi bi-list-ul"></i>
                                     </button>
                                 <?php else: ?>
                                     <button class="btn btn-sm btn-outline-success" onclick="editFieldOptions(<?= $field['id'] ?>, '<?= htmlspecialchars(addslashes($field['label'])) ?>', '<?= $field['type'] ?>')">
@@ -92,7 +92,10 @@
                             <?php endif; ?>
                         </td>
                         <td>
-                            <button class="btn btn-sm btn-outline-danger" onclick="deleteField(<?= $field['id'] ?>)">
+                            <button class="btn btn-sm btn-outline-primary me-1" onclick='editField(<?= json_encode($field) ?>)' title="Edit Field">
+                                <i class="bi bi-pencil"></i>
+                            </button>
+                            <button class="btn btn-sm btn-outline-danger" onclick="deleteField(<?= $field['id'] ?>)" title="Delete Field">
                                 <i class="bi bi-trash"></i>
                             </button>
                         </td>
@@ -104,7 +107,7 @@
 
         <!-- Add Field Form -->
         <div class="bg-light rounded p-3">
-            <h6 class="small fw-bold text-muted mb-2">Add New Field</h6>
+            <h6 class="small fw-bold text-muted mb-2"><i class="bi bi-plus-circle me-1"></i> Add New Field</h6>
             <div class="row g-2">
                 <input type="hidden" name="section_id" value="<?= $section['id'] ?>">
                 <div class="col-md-2">
@@ -177,7 +180,72 @@
     </div>
 </div>
 
-<!-- Options Editor Modal -->
+<!-- ===== EDIT FIELD MODAL ===== -->
+<div class="modal fade" id="editFieldModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title"><i class="bi bi-pencil me-2"></i>Edit Field</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <input type="hidden" id="editFieldId">
+                <div class="mb-3">
+                    <label class="form-label small fw-semibold">Field Name</label>
+                    <input type="text" id="editFieldName" class="form-control form-control-sm" readonly>
+                    <small class="text-muted">Field names cannot be changed.</small>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label small fw-semibold">Label <span class="text-danger">*</span></label>
+                    <input type="text" id="editFieldLabel" class="form-control form-control-sm" required>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label small fw-semibold">Type <span class="text-danger">*</span></label>
+                    <select id="editFieldType" class="form-select form-select-sm">
+                        <option value="text">Text</option>
+                        <option value="textarea">Textarea</option>
+                        <option value="number">Number</option>
+                        <option value="decimal">Decimal</option>
+                        <option value="date">Date</option>
+                        <option value="email">Email</option>
+                        <option value="mobile">Mobile</option>
+                        <option value="dropdown">Dropdown</option>
+                        <option value="multi-select">Multi-select</option>
+                        <option value="radio">Radio</option>
+                        <option value="checkbox">Checkbox</option>
+                        <option value="file">File Upload</option>
+                        <option value="image">Image Upload</option>
+                        <option value="url">URL</option>
+                        <option value="heading">Heading</option>
+                        <option value="readonly">Read-only</option>
+                    </select>
+                </div>
+                <div class="mb-3">
+                    <label class="form-label small fw-semibold">Placeholder</label>
+                    <input type="text" id="editFieldPlaceholder" class="form-control form-control-sm">
+                </div>
+                <div class="mb-3">
+                    <label class="form-label small fw-semibold">Default Value</label>
+                    <input type="text" id="editFieldDefault" class="form-control form-control-sm">
+                </div>
+                <div class="mb-3">
+                    <div class="form-check form-switch">
+                        <input class="form-check-input" type="checkbox" id="editFieldRequired">
+                        <label class="form-check-label small fw-semibold" for="editFieldRequired">Required</label>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary btn-sm" onclick="saveFieldEdit()">
+                    <i class="bi bi-check me-1"></i> Save Changes
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ===== OPTIONS EDITOR MODAL ===== -->
 <div class="modal fade" id="optionsModal" tabindex="-1">
     <div class="modal-dialog">
         <div class="modal-content">
@@ -202,7 +270,7 @@
     </div>
 </div>
 
-<!-- Password Delete Modal -->
+<!-- ===== PASSWORD DELETE MODAL ===== -->
 <div class="modal fade" id="deleteFormModal" tabindex="-1">
     <div class="modal-dialog">
         <div class="modal-content">
@@ -227,7 +295,6 @@
 </div>
 
 <script>
-// Current field being edited for options
 var currentFieldId = null;
 
 function toggleOptionsRow(select) {
@@ -272,7 +339,6 @@ async function addField(btn, sectionId) {
         }
     });
 
-    // Handle comma-separated options for dropdown/radio
     var typeSelect = row.querySelector('select[name="type"]');
     if (['dropdown', 'multi-select', 'radio'].includes(typeSelect.value)) {
         var optionsRow = document.getElementById('options-row-' + sectionId);
@@ -297,6 +363,42 @@ async function deleteField(fieldId) {
     else showToast(result.error || 'Failed.', 'danger');
 }
 
+// ===== EDIT FIELD =====
+function editField(field) {
+    document.getElementById('editFieldId').value = field.id;
+    document.getElementById('editFieldName').value = field.field_name;
+    document.getElementById('editFieldLabel').value = field.label;
+    document.getElementById('editFieldType').value = field.type;
+    document.getElementById('editFieldPlaceholder').value = field.placeholder || '';
+    document.getElementById('editFieldDefault').value = field.default_value || '';
+    document.getElementById('editFieldRequired').checked = field.required == 1;
+    new bootstrap.Modal(document.getElementById('editFieldModal')).show();
+}
+
+async function saveFieldEdit() {
+    var fieldId = document.getElementById('editFieldId').value;
+    var formData = new FormData();
+    formData.append('label', document.getElementById('editFieldLabel').value.trim());
+    formData.append('type', document.getElementById('editFieldType').value);
+    formData.append('placeholder', document.getElementById('editFieldPlaceholder').value.trim());
+    formData.append('default_value', document.getElementById('editFieldDefault').value.trim());
+    formData.append('required', document.getElementById('editFieldRequired').checked ? '1' : '0');
+
+    if (!formData.get('label')) {
+        showToast('Label is required.', 'warning');
+        return;
+    }
+
+    var result = await ajaxPost('/bestdealcrm/admin/form-builder/field/' + fieldId + '/update', formData);
+    if (result.success) {
+        showToast(result.message, 'success');
+        bootstrap.Modal.getInstance(document.getElementById('editFieldModal')).hide();
+        location.reload();
+    } else {
+        showToast(result.error || 'Failed to update field.', 'danger');
+    }
+}
+
 // ===== OPTIONS EDITOR =====
 async function editFieldOptions(fieldId, label, type) {
     currentFieldId = fieldId;
@@ -310,7 +412,7 @@ async function editFieldOptions(fieldId, label, type) {
     if (result.success && result.options.length > 0) {
         renderOptions(result.options);
     } else {
-        container.innerHTML = '';
+        container.innerHTML = '<p class="text-muted small">No options yet. Add some below.</p>';
     }
 }
 
@@ -318,6 +420,7 @@ function renderOptions(options) {
     var html = '';
     options.forEach(function(opt, i) {
         html += '<div class="input-group mb-2 option-row">';
+        html += '<span class="input-group-text bg-light small">' + (i + 1) + '</span>';
         html += '<input type="text" class="form-control form-control-sm opt-label" value="' + escapeHtml(opt.label) + '" placeholder="Label">';
         html += '<input type="text" class="form-control form-control-sm opt-value" value="' + escapeHtml(opt.value) + '" placeholder="Value" style="max-width:150px">';
         html += '<button class="btn btn-outline-danger btn-sm" onclick="this.closest(\'.option-row\').remove()"><i class="bi bi-x"></i></button>';
@@ -331,7 +434,9 @@ function addOptionRow() {
     var value = document.getElementById('newOptionValue').value.trim() || label.toLowerCase().replace(/[^a-z0-9]/g, '_');
     if (!label) { showToast('Enter an option label.', 'warning'); return; }
 
+    var count = document.querySelectorAll('#optionsList .option-row').length + 1;
     var html = '<div class="input-group mb-2 option-row">';
+    html += '<span class="input-group-text bg-light small">' + count + '</span>';
     html += '<input type="text" class="form-control form-control-sm opt-label" value="' + escapeHtml(label) + '" placeholder="Label">';
     html += '<input type="text" class="form-control form-control-sm opt-value" value="' + escapeHtml(value) + '" placeholder="Value" style="max-width:150px">';
     html += '<button class="btn btn-outline-danger btn-sm" onclick="this.closest(\'.option-row\').remove()"><i class="bi bi-x"></i></button>';

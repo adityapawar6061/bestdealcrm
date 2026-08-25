@@ -94,6 +94,7 @@ $router->middleware(['AuthMiddleware'], function ($router) {
             $router->post('/form-builder/{id}/update', 'FormBuilderController', 'update');
             $router->post('/form-builder/add-section', 'FormBuilderController', 'addSection');
             $router->post('/form-builder/add-field', 'FormBuilderController', 'addField');
+            $router->post('/form-builder/field/{id}/update', 'FormBuilderController', 'updateField');
             $router->post('/form-builder/field/{id}/delete', 'FormBuilderController', 'deleteField');
             
             // Form Builder - Field Options
