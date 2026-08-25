@@ -35,18 +35,10 @@ function formatSalaryShort($val) {
     return number_format($n);
 }
 
-// Format response date - handles multiple formats
+// Format response date - show as text, clean up bad dates
 function formatResponseDate($d) {
-    if (!$d || $d === '0000-00-00' || $d === '0000-00-00 00:00:00' || $d === '0000-00-00 00:00:00.000000') return '—';
-    $ts = @strtotime($d);
-    if ($ts && $ts > 0 && $ts !== false) {
-        return date('d-M', $ts);
-    }
-    // Try parsing formats like "09-Aug-2026", "09/Aug/2026", "Aug 09, 2026"
-    $clean = preg_replace('/[^\w\s\-\/\.]/', ' ', $d);
-    $ts2 = @strtotime($clean);
-    if ($ts2 && $ts2 > 0) return date('d-M', $ts2);
-    return htmlspecialchars($d);
+    if (!$d || $d === '0000-00-00' || $d === '0000-00-00 00:00:00' || $d === '0000-00-00 00:00:00.000000') return '';
+    return htmlspecialchars(trim($d));
 }
 ?>
 
@@ -59,7 +51,7 @@ function formatResponseDate($d) {
 <div class="row g-3 mb-4">
     <div class="col-md-3">
         <a href="<?= BASE_URL ?>/agent/leads" class="text-decoration-none">
-            <div class="stat-card <?= empty($filters['disposition']) ? 'border border-primary' : '' ?>">
+            <div class="stat-card <?= empty($filters['disposition']) && empty($filters['filter']) ? 'border border-primary' : '' ?>">
                 <div class="d-flex justify-content-between align-items-center">
                     <div>
                         <div class="stat-number text-primary"><?= number_format($totalAssigned) ?></div>
@@ -71,8 +63,8 @@ function formatResponseDate($d) {
         </a>
     </div>
     <div class="col-md-3">
-        <a href="<?= BASE_URL ?>/agent/leads?disposition=" class="text-decoration-none">
-            <div class="stat-card <?= (isset($filters['disposition']) && $filters['disposition'] === '') ? 'border border-warning' : '' ?>">
+        <a href="<?= BASE_URL ?>/agent/leads?filter=pending" class="text-decoration-none">
+            <div class="stat-card <?= (isset($filters['filter']) && $filters['filter'] === 'pending') ? 'border border-warning' : '' ?>">
                 <div class="d-flex justify-content-between align-items-center">
                     <div>
                         <div class="stat-number text-warning"><?= number_format($pendingDisposition) ?></div>
@@ -265,23 +257,24 @@ function updateDisposition(leadId, value) {
         formData.append('disposition', value);
         ajaxPost(BASE_URL + '/agent/leads/update-disposition', formData).then(function(result) {
             if (result && result.success) {
-                showToast('Disposition updated.', 'success');
-                // Update the Current Disposition badge
+                showToast(result.message || 'Disposition saved.', 'success');
+                // Update Current Disposition badge
                 var row = document.getElementById('lead-row-' + leadId);
                 if (row) {
                     var cells = row.querySelectorAll('td');
-                    var dispCell = cells[12]; // Current Disposition column
+                    var dispCell = cells[12];
                     if (dispCell) {
-                        if (value) {
-                            dispCell.innerHTML = '<span class="badge bg-success">' + escapeHtml(value) + '</span>';
-                        } else {
-                            dispCell.innerHTML = '<span class="badge bg-secondary">Pending</span>';
-                        }
+                        dispCell.innerHTML = value
+                            ? '<span class="badge bg-success">' + escapeHtml(value) + '</span>'
+                            : '<span class="badge bg-secondary">Pending</span>';
                     }
                 }
             } else {
-                showToast(result.error || 'Failed to update.', 'danger');
+                showToast(result.error || 'Update failed.', 'danger');
             }
+        }).catch(function(err) {
+            console.error('Disposition update error:', err);
+            showToast('Server error: ' + (err.message || 'Unknown error'), 'danger');
         });
     }, 500);
 }
@@ -295,7 +288,12 @@ function updateRemark(leadId, value) {
         ajaxPost(BASE_URL + '/agent/leads/update-disposition', formData).then(function(result) {
             if (result && result.success) {
                 showToast('Remark saved.', 'success');
+            } else {
+                showToast(result.error || 'Save failed.', 'danger');
             }
+        }).catch(function(err) {
+            console.error('Remark update error:', err);
+            showToast('Server error: ' + (err.message || 'Unknown error'), 'danger');
         });
     }, 800);
 }
@@ -307,10 +305,13 @@ function updateField(leadId, field, value) {
     formData.append('value', value);
     ajaxPost(BASE_URL + '/agent/leads/update-disposition', formData).then(function(result) {
         if (result && result.success) {
-            showToast(field.replace('_', ' ') + ' updated.', 'success');
+            showToast(result.message || (field.replace('_', ' ') + ' updated.'), 'success');
         } else {
-            showToast(result.error || 'Failed to update.', 'danger');
+            showToast(result.error || 'Update failed.', 'danger');
         }
+    }).catch(function(err) {
+        console.error('Field update error:', err);
+        showToast('Server error: ' + (err.message || 'Unknown error'), 'danger');
     });
 }
 

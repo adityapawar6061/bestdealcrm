@@ -535,11 +535,13 @@ class AdminController extends BaseController
             $states = $this->db->fetchAll("SELECT DISTINCT state FROM leads WHERE state IS NOT NULL AND state != '' ORDER BY state");
             $dataTypes = $this->db->fetchAll("SELECT DISTINCT data_type FROM leads WHERE data_type IS NOT NULL AND data_type != '' ORDER BY data_type");
             $bankNames = $this->db->fetchAll("SELECT DISTINCT bank_name FROM leads WHERE bank_name IS NOT NULL AND bank_name != '' ORDER BY bank_name");
+            $responseDates = $this->db->fetchAll("SELECT DISTINCT response_date FROM leads WHERE response_date IS NOT NULL AND response_date != '' AND response_date != '0000-00-00' ORDER BY response_date");
 
             $this->json([
                 'success' => true,
                 'locations' => array_column($locations, 'location'),
                 'states' => array_column($states, 'state'),
+                'response_dates' => array_column($responseDates, 'response_date'),
                 'data_types' => array_column($dataTypes, 'data_type'),
                 'bank_names' => array_column($bankNames, 'bank_name'),
             ]);

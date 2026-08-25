@@ -142,8 +142,33 @@ class Lead
             $params[] = $filters['assigned_to'];
         }
         if (!empty($filters['disposition'])) {
-            $where .= ' AND l.disposition = ?';
-            $params[] = $filters['disposition'];
+            if ($filters['disposition'] === '__pending__') {
+                // Pending = no disposition set (try both columns)
+                $pendingParts = [];
+                if ($this->hasColumnStatic('leads', 'disposition')) {
+                    $pendingParts[] = '(l.disposition IS NULL OR l.disposition = \"\")';
+                }
+                if ($this->hasColumnStatic('leads', 'agent_disposition')) {
+                    $pendingParts[] = '(l.agent_disposition IS NULL OR l.agent_disposition = \"\")';
+                }
+                if (!empty($pendingParts)) {
+                    $where .= ' AND (' . implode(' AND ', $pendingParts) . ')';
+                }
+            } else {
+                // Filter by specific disposition value
+                $dispParts = [];
+                if ($this->hasColumnStatic('leads', 'disposition')) {
+                    $dispParts[] = 'l.disposition = ?';
+                }
+                if ($this->hasColumnStatic('leads', 'agent_disposition')) {
+                    $dispParts[] = 'l.agent_disposition = ?';
+                }
+                if (!empty($dispParts)) {
+                    $where .= ' AND (' . implode(' OR ', $dispParts) . ')';
+                    // Add param once for each part (same value)
+                    foreach ($dispParts as $_) { $params[] = $filters['disposition']; }
+                }
+            }
         }
         if (!empty($filters['date_from'])) {
             $where .= ' AND l.created_at >= ?';
@@ -222,5 +247,25 @@ class Lead
     public function getUnassignedCount(): int
     {
         return $this->db->count('leads', 'assigned_to IS NULL');
+    }
+
+    /**
+     * Check if a column exists in a table (cached per request)
+     */
+    private function hasColumnStatic(string $table, string $column): bool
+    {
+        static $cache = [];
+        $key = $table . '.' . $column;
+        if (isset($cache[$key])) return $cache[$key];
+        try {
+            $result = $this->db->fetchOne(
+                "SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?",
+                [$table, $column]
+            );
+            $cache[$key] = ($result !== null);
+        } catch (\Throwable $e) {
+            $cache[$key] = false;
+        }
+        return $cache[$key];
     }
 }

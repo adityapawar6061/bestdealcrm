@@ -57,12 +57,18 @@ class AgentController extends BaseController
             'search'         => $_GET['search'] ?? '',
             'workflow_stage' => $_GET['workflow_stage'] ?? '',
             'disposition'    => $_GET['disposition'] ?? '',
+            'filter'         => $_GET['filter'] ?? '',
         ];
         $page = (int)($_GET['page'] ?? 1);
 
-        // Only filter by disposition if column exists
-        if (!empty($filters['disposition']) && !$this->hasColumn('leads', 'disposition')) {
-            unset($filters['disposition']);
+        // Check which disposition columns exist
+        $existingCols = $this->getExistingColumns('leads');
+        $hasDisposition = in_array('disposition', $existingCols);
+        $hasAgentDisposition = in_array('agent_disposition', $existingCols);
+
+        // If filter=pending, override disposition filter
+        if ($filters['filter'] === 'pending') {
+            $filters['disposition'] = '__pending__';
         }
 
         $leads = $this->leadModel->getByAgent($user['id'], $filters, $page);
@@ -70,12 +76,24 @@ class AgentController extends BaseController
         // Disposition stats for cards
         $userId = $user['id'];
         $totalAssigned = $this->db->count('leads', 'assigned_to = ?', [$userId]);
-        $pendingDisposition = $totalAssigned; // default: all are pending
+        $pendingDisposition = $totalAssigned;
         $dispositionCounts = [];
-        if ($this->hasColumn('leads', 'disposition')) {
-            $pendingDisposition = $this->db->count('leads', "assigned_to = ? AND (disposition IS NULL OR disposition = '')", [$userId]);
+
+        if ($hasDisposition || $hasAgentDisposition) {
+            // Build pending condition from whichever columns exist
+            $pendingParts = [];
+            if ($hasDisposition) $pendingParts[] = '(disposition IS NULL OR disposition = \"\")';
+            if ($hasAgentDisposition) $pendingParts[] = '(agent_disposition IS NULL OR agent_disposition = \"\")';
+            $pendingSql = implode(' AND ', $pendingParts);
+            $pendingDisposition = (int)$this->db->fetchOne(
+                "SELECT COUNT(*) as cnt FROM leads WHERE assigned_to = ? AND {$pendingSql}",
+                [$userId]
+            )['cnt'];
+
+            // Group by whichever column has data
+            $dispCol = $hasDisposition ? 'disposition' : 'agent_disposition';
             $dispositionCounts = $this->db->fetchAll(
-                "SELECT disposition, COUNT(*) as cnt FROM leads WHERE assigned_to = ? AND disposition IS NOT NULL AND disposition != '' GROUP BY disposition ORDER BY cnt DESC",
+                "SELECT {$dispCol} as disposition, COUNT(*) as cnt FROM leads WHERE assigned_to = ? AND {$dispCol} IS NOT NULL AND {$dispCol} != \"\" GROUP BY {$dispCol} ORDER BY cnt DESC",
                 [$userId]
             );
         }
@@ -398,49 +416,76 @@ class AgentController extends BaseController
      */
     public function updateDisposition(): void
     {
-        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-            $this->json(['error' => 'Invalid request.'], 405);
-            return;
-        }
-
-        $leadId = (int)($_POST['lead_id'] ?? 0);
-        $disposition = trim($_POST['disposition'] ?? '');
-        $agentRemark = $_POST['agent_remark'] ?? null;
-        $field = trim($_POST['field'] ?? '');
-        $value = trim($_POST['value'] ?? '');
-        $user = currentUser();
-
-        $lead = $this->leadModel->findById($leadId);
-        if (!$lead || $lead['assigned_to'] != $user['id']) {
-            $this->json(['error' => 'Unauthorized.'], 403);
-            return;
-        }
-
-        $updateData = ['updated_at' => date('Y-m-d H:i:s')];
-
-        // Handle disposition update
-        if ($disposition !== '' && $this->hasColumn('leads', 'agent_disposition')) {
-            $updateData['agent_disposition'] = $disposition;
-        }
-        if ($disposition !== '' && $this->hasColumn('leads', 'disposition')) {
-            $updateData['disposition'] = $disposition;
-        }
-        if ($agentRemark !== null && $this->hasColumn('leads', 'agent_remark')) {
-            $updateData['agent_remark'] = $agentRemark;
-        }
-
-        // Handle generic field update (e.g., actual_salary)
-        if ($field && isset($lead[$field])) {
-            $allowedFields = ['actual_salary', 'salary', 'existing_la', 'remark'];
-            if (in_array($field, $allowedFields)) {
-                $updateData[$field] = $value ?: null;
+        try {
+            if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+                $this->json(['error' => 'Invalid request.'], 405);
+                return;
             }
+
+            $leadId = (int)($_POST['lead_id'] ?? 0);
+            $disposition = trim($_POST['disposition'] ?? '');
+            $agentRemark = $_POST['agent_remark'] ?? null;
+            $field = trim($_POST['field'] ?? '');
+            $value = trim($_POST['value'] ?? '');
+            $user = currentUser();
+
+            $lead = $this->leadModel->findById($leadId);
+            if (!$lead || $lead['assigned_to'] != $user['id']) {
+                $this->json(['error' => 'Unauthorized.'], 403);
+                return;
+            }
+
+            $updateData = ['updated_at' => date('Y-m-d H:i:s')];
+            $existingCols = $this->getExistingColumns('leads');
+
+            // Handle disposition update — try both columns
+            if ($disposition !== '') {
+                if (in_array('agent_disposition', $existingCols)) {
+                    $updateData['agent_disposition'] = $disposition;
+                }
+                if (in_array('disposition', $existingCols)) {
+                    $updateData['disposition'] = $disposition;
+                }
+            }
+            if ($agentRemark !== null && in_array('agent_remark', $existingCols)) {
+                $updateData['agent_remark'] = $agentRemark;
+            }
+
+            // Handle generic field update (e.g., actual_salary)
+            if ($field && isset($lead[$field])) {
+                $allowedFields = ['actual_salary', 'salary', 'existing_la', 'remark'];
+                if (in_array($field, $allowedFields) && in_array($field, $existingCols)) {
+                    $updateData[$field] = $value ?: null;
+                }
+            }
+
+            $this->db->update('leads', $updateData, 'id = ?', [$leadId]);
+            logActivity($user['id'], 'disposition_updated', 'lead', $leadId, null, json_encode(['disposition' => $disposition, 'field' => $field, 'value' => $value, 'updated' => array_keys($updateData)]));
+
+            $this->json(['success' => true, 'message' => 'Updated.', 'updated_fields' => array_keys($updateData)]);
+        } catch (\Throwable $e) {
+            error_log('updateDisposition ERROR: ' . $e->getMessage());
+            $this->json(['error' => 'Update failed: ' . $e->getMessage()], 500);
         }
+    }
 
-        $this->db->update('leads', $updateData, 'id = ?', [$leadId]);
-        logActivity($user['id'], 'disposition_updated', 'lead', $leadId, null, json_encode(['disposition' => $disposition]));
-
-        $this->json(['success' => true, 'message' => 'Updated.']);
+    /**
+     * Get existing column names for a table (cached per request)
+     */
+    private function getExistingColumns(string $table): array
+    {
+        static $cache = [];
+        if (isset($cache[$table])) return $cache[$table];
+        try {
+            $rows = $this->db->fetchAll(
+                "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?",
+                [$table]
+            );
+            $cache[$table] = array_column($rows, 'COLUMN_NAME');
+        } catch (\Throwable $e) {
+            $cache[$table] = [];
+        }
+        return $cache[$table];
     }
 
     /**

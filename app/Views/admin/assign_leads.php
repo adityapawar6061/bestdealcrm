@@ -23,7 +23,9 @@
         </div>
         <div class="col-md-3 col-lg-2">
             <label class="form-label small fw-semibold">Response Date</label>
-            <input type="date" id="filterResponseDate" class="form-control form-control-sm">
+            <select id="filterResponseDate" class="form-select form-select-sm">
+                <option value="">All Dates</option>
+            </select>
         </div>
         <div class="col-md-3 col-lg-2">
             <label class="form-label small fw-semibold">Data Type</label>
@@ -160,6 +162,7 @@ function loadFilterOptions() {
         if (result && result.success) {
             populateSelect('filterLocation', result.locations || []);
             populateSelect('filterState', result.states || []);
+            populateSelect('filterResponseDate', result.response_dates || []);
             populateSelect('filterDataType', result.data_types || []);
             populateSelect('filterBankName', result.bank_names || []);
         }
@@ -247,11 +250,11 @@ function loadFilteredLeads(page) {
             html += '<td><small>' + escapeHtml(lead.location || '—') + '</small></td>';
             html += '<td><small>' + escapeHtml(lead.state || '—') + '</small></td>';
             html += '<td><small>' + escapeHtml(lead.existing_la || '—') + '</small></td>';
-            html += '<td class="text-end"><small>' + (lead.salary ? '₹' + Number(lead.salary).toLocaleString() : '—') + '</small></td>';
-            html += '<td class="text-end"><small>' + (lead.actual_salary ? '₹' + Number(lead.actual_salary).toLocaleString() : '—') + '</small></td>';
+            html += '<td class="text-end"><small>' + escapeHtml(lead.salary || '—') + '</small></td>';
+            html += '<td class="text-end"><small>' + escapeHtml(lead.actual_salary || '—') + '</small></td>';
             html += '<td><span class="badge bg-light text-dark">' + escapeHtml(lead.data_type || '—') + '</span></td>';
             html += '<td><small>' + escapeHtml(lead.bank_name || '—') + '</small></td>';
-            html += '<td><small class="text-muted">' + escapeHtml(lead.response_date || '—') + '</small></td>';
+            html += '<td><small class="text-muted">' + escapeHtml((lead.response_date && lead.response_date !== '0000-00-00') ? lead.response_date : '—') + '</small></td>';
             html += '<td><span class="badge bg-' + getStageColor(lead.workflow_stage) + '">' + escapeHtml(formatStage(lead.workflow_stage)) + '</span></td>';
             html += '</tr>';
         });
