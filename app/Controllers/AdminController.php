@@ -1259,8 +1259,9 @@ class AdminController extends BaseController
                         $where = $whereParts[0] . $whereParts[1];
                     }
                     // Remove the param value from array
-                    $p = array_values(array_filter($p, function($v) use ($params, $_GET, $paramName) {
-                        return $v !== $_GET[$paramName];
+                    $filterVal = $_GET[$paramName];
+                    $p = array_values(array_filter($p, function($v) use ($filterVal) {
+                        return $v !== $filterVal;
                     }));
                 }
 
