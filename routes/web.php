@@ -35,6 +35,21 @@ $router->middleware(['AuthMiddleware'], function ($router) {
     $router->get('/tools/api/list', 'CalculatorController', 'apiList');
 
     // ========================================================
+    // SERVICES (PF Requests, CIBIL Requests, Data Entry)
+    // ========================================================
+    // Agent: PF Request
+    $router->get('/services/pf', 'ServicesController', 'pfRequestForm');
+    $router->post('/services/pf/submit', 'ServicesController', 'pfRequestSubmit');
+
+    // Agent: CIBIL Request
+    $router->get('/services/cibil', 'ServicesController', 'cibilRequestForm');
+    $router->post('/services/cibil/submit', 'ServicesController', 'cibilRequestSubmit');
+
+    // Agent: Data Entry
+    $router->get('/agent/data-entry', 'ServicesController', 'dataEntry');
+    $router->post('/agent/data-entry/submit', 'ServicesController', 'dataEntrySubmit');
+
+    // ========================================================
     // ADMIN ROUTES
     // ========================================================
     $router->prefix('/admin', function ($router) {
@@ -117,6 +132,22 @@ $router->middleware(['AuthMiddleware'], function ($router) {
             
             // Cascading Filters
             $router->get('/leads/assign/cascading-filters', 'AdminController', 'cascadingFilters');
+
+            // PF Requests
+            $router->get('/pf-requests', 'ServicesController', 'pfRequests');
+            $router->get('/pf-verify/{id}', 'ServicesController', 'pfVerify');
+            $router->post('/pf-process', 'ServicesController', 'pfProcess');
+
+            // CIBIL Requests
+            $router->get('/cibil-requests', 'ServicesController', 'cibilRequests');
+            $router->get('/cibil-verify/{id}', 'ServicesController', 'cibilVerify');
+            $router->post('/cibil-process', 'ServicesController', 'cibilProcess');
+
+            // Data Entry Management
+            $router->get('/data-dashboard', 'ServicesController', 'dataDashboard');
+            $router->get('/data-view', 'ServicesController', 'dataViewAll');
+            $router->get('/data-add', 'ServicesController', 'dataAddForm');
+            $router->post('/data-add/submit', 'ServicesController', 'dataAddSubmit');
 
             // Change Password (all roles)
             $router->post('/change-password', 'AdminController', 'changePassword');

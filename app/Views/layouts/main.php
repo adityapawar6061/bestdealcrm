@@ -198,6 +198,17 @@
                     <i class="bi bi-bank"></i> Eligibility Checker
                 </a>
 
+                <div class="nav-section">Services</div>
+                <a href="/bestdealcrm/admin/pf-requests" class="nav-link <?= str_contains($currentUri, '/pf-requests') || str_contains($currentUri, '/pf-verify') ? 'active' : '' ?>">
+                    <i class="bi bi-file-earmark-text"></i> PF Requests
+                </a>
+                <a href="/bestdealcrm/admin/cibil-requests" class="nav-link <?= str_contains($currentUri, '/cibil-requests') || str_contains($currentUri, '/cibil-verify') ? 'active' : '' ?>">
+                    <i class="bi bi-credit-card"></i> CIBIL Requests
+                </a>
+                <a href="/bestdealcrm/admin/data-dashboard" class="nav-link <?= str_contains($currentUri, '/data-dashboard') || str_contains($currentUri, '/data-view') || str_contains($currentUri, '/data-add') ? 'active' : '' ?>">
+                    <i class="bi bi-clipboard-data"></i> Data Entry Admin
+                </a>
+
             <?php elseif ($role === 'team_leader'): ?>
                 <div class="nav-section">Main</div>
                 <a href="/bestdealcrm/team-leader/dashboard" class="nav-link <?= str_contains($currentUri, '/team-leader/dashboard') ? 'active' : '' ?>">
@@ -219,6 +230,13 @@
                 <a href="/bestdealcrm/tools/eligibility" class="nav-link <?= str_contains($currentUri, '/tools/eligibility') ? 'active' : '' ?>">
                     <i class="bi bi-bank"></i> Eligibility Checker
                 </a>
+                <div class="nav-section">Services</div>
+                <a href="/bestdealcrm/services/pf" class="nav-link <?= str_contains($currentUri, '/services/pf') ? 'active' : '' ?>">
+                    <i class="bi bi-file-earmark-text"></i> PF Request
+                </a>
+                <a href="/bestdealcrm/services/cibil" class="nav-link <?= str_contains($currentUri, '/services/cibil') ? 'active' : '' ?>">
+                    <i class="bi bi-credit-card"></i> CIBIL Request
+                </a>
 
             <?php elseif ($role === 'agent'): ?>
                 <div class="nav-section">Main</div>
@@ -239,6 +257,17 @@
                     <i class="bi bi-bank"></i> Eligibility Checker
                 </a>
 
+                <div class="nav-section">Services</div>
+                <a href="/bestdealcrm/services/pf" class="nav-link <?= str_contains($currentUri, '/services/pf') ? 'active' : '' ?>">
+                    <i class="bi bi-file-earmark-text"></i> PF Request
+                </a>
+                <a href="/bestdealcrm/services/cibil" class="nav-link <?= str_contains($currentUri, '/services/cibil') ? 'active' : '' ?>">
+                    <i class="bi bi-credit-card"></i> CIBIL Request
+                </a>
+                <a href="/bestdealcrm/agent/data-entry" class="nav-link <?= str_contains($currentUri, '/data-entry') ? 'active' : '' ?>">
+                    <i class="bi bi-clipboard-data"></i> Data Entry
+                </a>
+
             <?php elseif ($role === 'login_agent'): ?>
                 <div class="nav-section">Main</div>
                 <a href="/bestdealcrm/login-agent/dashboard" class="nav-link <?= str_contains($currentUri, '/login-agent/dashboard') ? 'active' : '' ?>">
@@ -256,6 +285,13 @@
                 </a>
                 <a href="/bestdealcrm/tools/eligibility" class="nav-link <?= str_contains($currentUri, '/tools/eligibility') ? 'active' : '' ?>">
                     <i class="bi bi-bank"></i> Eligibility Checker
+                </a>
+                <div class="nav-section">Services</div>
+                <a href="/bestdealcrm/services/pf" class="nav-link <?= str_contains($currentUri, '/services/pf') ? 'active' : '' ?>">
+                    <i class="bi bi-file-earmark-text"></i> PF Request
+                </a>
+                <a href="/bestdealcrm/services/cibil" class="nav-link <?= str_contains($currentUri, '/services/cibil') ? 'active' : '' ?>">
+                    <i class="bi bi-credit-card"></i> CIBIL Request
                 </a>
 
             <?php elseif ($role === 'underwriting'): ?>
@@ -276,6 +312,13 @@
                 <a href="/bestdealcrm/tools/eligibility" class="nav-link <?= str_contains($currentUri, '/tools/eligibility') ? 'active' : '' ?>">
                     <i class="bi bi-bank"></i> Eligibility Checker
                 </a>
+                <div class="nav-section">Services</div>
+                <a href="/bestdealcrm/services/pf" class="nav-link <?= str_contains($currentUri, '/services/pf') ? 'active' : '' ?>">
+                    <i class="bi bi-file-earmark-text"></i> PF Request
+                </a>
+                <a href="/bestdealcrm/services/cibil" class="nav-link <?= str_contains($currentUri, '/services/cibil') ? 'active' : '' ?>">
+                    <i class="bi bi-credit-card"></i> CIBIL Request
+                </a>
 
             <?php elseif ($role === 'dispatch'): ?>
                 <div class="nav-section">Main</div>
@@ -294,6 +337,13 @@
                 </a>
                 <a href="/bestdealcrm/tools/eligibility" class="nav-link <?= str_contains($currentUri, '/tools/eligibility') ? 'active' : '' ?>">
                     <i class="bi bi-bank"></i> Eligibility Checker
+                </a>
+                <div class="nav-section">Services</div>
+                <a href="/bestdealcrm/services/pf" class="nav-link <?= str_contains($currentUri, '/services/pf') ? 'active' : '' ?>">
+                    <i class="bi bi-file-earmark-text"></i> PF Request
+                </a>
+                <a href="/bestdealcrm/services/cibil" class="nav-link <?= str_contains($currentUri, '/services/cibil') ? 'active' : '' ?>">
+                    <i class="bi bi-credit-card"></i> CIBIL Request
                 </a>
             <?php endif; ?>
         </nav>
