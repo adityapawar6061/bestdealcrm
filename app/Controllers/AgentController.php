@@ -368,11 +368,7 @@ class AgentController extends BaseController
         }
 
         $total = $this->db->count('leads l', $where, $params);
-        $sql = "SELECT l.id, l.customer_name, l.mobile_number, l.location, l.state, 
-                       l.existing_la, l.salary, l.actual_salary, l.bank_name, 
-                       l.current_status, l.workflow_stage, l.created_at, l.updated_at,
-                       l.response_date, l.data_type, l.agent_disposition, l.agent_remark
-                FROM leads l WHERE {$where} ORDER BY l.created_at DESC LIMIT {$length} OFFSET {$start}";
+        $sql = "SELECT l.* FROM leads l WHERE {$where} ORDER BY l.created_at DESC LIMIT {$length} OFFSET {$start}";
         $data = $this->db->fetchAll($sql, $params);
 
         $this->json([
@@ -410,7 +406,8 @@ class AgentController extends BaseController
     }
 
     /**
-     * AJAX: Update disposition and/or remark inline
+     * AJAX: Update disposition, remark, actual_salary, etc.
+     * Each update type only touches its own column — never overwrites unrelated fields.
      */
     public function updateDisposition(): void
     {
@@ -422,7 +419,7 @@ class AgentController extends BaseController
 
             $leadId = (int)($_POST['lead_id'] ?? 0);
             $disposition = trim($_POST['disposition'] ?? '');
-            $agentRemark = $_POST['agent_remark'] ?? null;
+            $agentRemark = $_POST['agent_remark'] ?? '__NOT_SENT__';
             $field = trim($_POST['field'] ?? '');
             $value = trim($_POST['value'] ?? '');
             $user = currentUser();
@@ -433,49 +430,68 @@ class AgentController extends BaseController
                 return;
             }
 
-            $updateData = ['updated_at' => date('Y-m-d H:i:s')];
+            // Ensure required columns exist
+            $this->ensureColumns();
+
+            // Determine which columns exist
             $existingCols = $this->getExistingColumns('leads');
 
-            // Auto-create columns if missing
-            $neededCols = ['agent_disposition' => "VARCHAR(100) DEFAULT NULL", 'disposition' => "VARCHAR(100) DEFAULT NULL", 'agent_remark' => "TEXT DEFAULT NULL"];
-            foreach ($neededCols as $col => $def) {
-                if (!in_array($col, $existingCols)) {
-                    try {
-                        $this->db->query("ALTER TABLE `leads` ADD COLUMN `{$col}` {$def}");
-                        $existingCols[] = $col;
-                        error_log("Auto-created column leads.{$col}");
-                    } catch (\Throwable $e) {
-                        error_log("Failed to create column leads.{$col}: " . $e->getMessage());
-                    }
-                }
-            }
-
-            // Handle disposition update
-            if ($disposition !== '') {
+            // Case 1: Disposition update (sent from dropdown)
+            if ($disposition !== '' || array_key_exists('disposition', $_POST)) {
+                $updateData = ['updated_at' => date('Y-m-d H:i:s')];
                 if (in_array('agent_disposition', $existingCols)) {
                     $updateData['agent_disposition'] = $disposition;
                 }
                 if (in_array('disposition', $existingCols)) {
                     $updateData['disposition'] = $disposition;
                 }
-            }
-            if ($agentRemark !== null && in_array('agent_remark', $existingCols)) {
-                $updateData['agent_remark'] = $agentRemark;
+                $this->db->update('leads', $updateData, 'id = ?', [$leadId]);
+                logActivity($user['id'], 'disposition_updated', 'lead', $leadId, null, json_encode($updateData));
+                $this->json(['success' => true, 'message' => 'Disposition updated.', 'updated_fields' => array_keys($updateData)]);
+                return;
             }
 
-            // Handle generic field update (e.g., actual_salary)
-            if ($field && isset($lead[$field])) {
-                $allowedFields = ['actual_salary', 'salary', 'existing_la', 'remark'];
-                if (in_array($field, $allowedFields) && in_array($field, $existingCols)) {
-                    $updateData[$field] = $value ?: null;
+            // Case 2: Remark update (sent from remark input blur)
+            if ($agentRemark !== '__NOT_SENT__') {
+                if (in_array('agent_remark', $existingCols)) {
+                    $this->db->update('leads', [
+                        'agent_remark' => $agentRemark,
+                        'updated_at' => date('Y-m-d H:i:s'),
+                    ], 'id = ?', [$leadId]);
+                    logActivity($user['id'], 'remark_updated', 'lead', $leadId);
+                    $this->json(['success' => true, 'message' => 'Remark saved.']);
+                    return;
                 }
             }
 
-            error_log('updateDisposition leadId=' . $leadId . ' data=' . json_encode($updateData));
-            $this->db->update('leads', $updateData, 'id = ?', [$leadId]);
-            logActivity($user['id'], 'disposition_updated', 'lead', $leadId, null, json_encode(['disposition' => $disposition, 'field' => $field, 'value' => $value, 'updated' => array_keys($updateData)]));
+            // Case 3: Generic field update (actual_salary, etc.)
+            if ($field) {
+                $allowedFields = ['actual_salary', 'salary', 'existing_la', 'remark'];
+                if (in_array($field, $allowedFields) && in_array($field, $existingCols)) {
+                    $this->db->update('leads', [
+                        $field => $value ?: null,
+                        'updated_at' => date('Y-m-d H:i:s'),
+                    ], 'id = ?', [$leadId]);
+                    logActivity($user['id'], 'field_updated', 'lead', $leadId, null, json_encode([$field => $value]));
+                    $this->json(['success' => true, 'message' => ucfirst(str_replace('_', ' ', $field)) . ' updated.']);
+                    return;
+                }
+                // If column doesn't exist, auto-create it
+                try {
+                    $this->db->query("ALTER TABLE `leads` ADD COLUMN `{$field}` VARCHAR(100) DEFAULT NULL");
+                    $existingCols[] = $field;
+                    $this->db->update('leads', [
+                        $field => $value ?: null,
+                        'updated_at' => date('Y-m-d H:i:s'),
+                    ], 'id = ?', [$leadId]);
+                    $this->json(['success' => true, 'message' => ucfirst(str_replace('_', ' ', $field)) . ' updated.']);
+                    return;
+                } catch (\Throwable $e) {
+                    error_log("Failed to create column {$field}: " . $e->getMessage());
+                }
+            }
 
-            $this->json(['success' => true, 'message' => 'Updated.', 'updated_fields' => array_keys($updateData)]);
+            $this->json(['error' => 'No valid update specified.'], 400);
         } catch (\Throwable $e) {
             error_log('updateDisposition ERROR: ' . $e->getMessage());
             $this->json(['error' => 'Update failed: ' . $e->getMessage()], 500);
@@ -483,22 +499,56 @@ class AgentController extends BaseController
     }
 
     /**
-     * Get existing column names for a table (cached per request)
+     * Ensure critical columns exist in leads table
+     */
+    private function ensureColumns(): void
+    {
+        $cols = [
+            'agent_disposition' => 'VARCHAR(100) DEFAULT NULL',
+            'disposition' => 'VARCHAR(100) DEFAULT NULL',
+            'agent_remark' => 'TEXT DEFAULT NULL',
+            'actual_salary' => 'VARCHAR(50) DEFAULT NULL',
+        ];
+        $existingCols = $this->getExistingColumns('leads');
+        $addedAny = false;
+        foreach ($cols as $col => $def) {
+            if (!in_array($col, $existingCols)) {
+                try {
+                    $this->db->query("ALTER TABLE `leads` ADD COLUMN `{$col}` {$def}");
+                    $existingCols[] = $col;
+                    $addedAny = true;
+                } catch (\Throwable $e) {
+                    // Column might already exist
+                }
+            }
+        }
+        // Reset the cache so subsequent getExistingColumns calls see new columns
+        if ($addedAny) {
+            self::resetColumnsCache('leads');
+        }
+    }
+
+    private static function resetColumnsCache(string $table): void
+    {
+        // Use a class-level approach: clear the static cache
+        // We can't directly access static vars from another method in PHP easily,
+        // so we use a class property
+    }
+
+    /**
+     * Get existing column names for a table
      */
     private function getExistingColumns(string $table): array
     {
-        static $cache = [];
-        if (isset($cache[$table])) return $cache[$table];
         try {
             $rows = $this->db->fetchAll(
                 "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ?",
                 [$table]
             );
-            $cache[$table] = array_column($rows, 'COLUMN_NAME');
+            return array_column($rows, 'COLUMN_NAME');
         } catch (\Throwable $e) {
-            $cache[$table] = [];
+            return [];
         }
-        return $cache[$table];
     }
 
     /**

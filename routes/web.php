@@ -25,6 +25,16 @@ $router->middleware(['AuthMiddleware'], function ($router) {
     $router->get('/dashboard', 'DashboardController', 'index');
 
     // ========================================================
+    // TOOLS (Calculator & Eligibility Checker) - ALL ROLES
+    // ========================================================
+    $router->get('/tools/calculator', 'CalculatorController', 'calculator');
+    $router->get('/tools/eligibility', 'CalculatorController', 'eligibility');
+    $router->post('/tools/api/save', 'CalculatorController', 'apiSave');
+    $router->get('/tools/api/load', 'CalculatorController', 'apiLoad');
+    $router->post('/tools/api/update', 'CalculatorController', 'apiUpdate');
+    $router->get('/tools/api/list', 'CalculatorController', 'apiList');
+
+    // ========================================================
     // ADMIN ROUTES
     // ========================================================
     $router->prefix('/admin', function ($router) {

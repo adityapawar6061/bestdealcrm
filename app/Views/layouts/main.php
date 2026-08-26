@@ -190,6 +190,14 @@
                     <i class="bi bi-clock-history"></i> Activity Logs
                 </a>
 
+                <div class="nav-section">Tools</div>
+                <a href="/bestdealcrm/tools/calculator" class="nav-link <?= str_contains($currentUri, '/tools/calculator') ? 'active' : '' ?>">
+                    <i class="bi bi-calculator"></i> EMI Calculator
+                </a>
+                <a href="/bestdealcrm/tools/eligibility" class="nav-link <?= str_contains($currentUri, '/tools/eligibility') ? 'active' : '' ?>">
+                    <i class="bi bi-bank"></i> Eligibility Checker
+                </a>
+
             <?php elseif ($role === 'team_leader'): ?>
                 <div class="nav-section">Main</div>
                 <a href="/bestdealcrm/team-leader/dashboard" class="nav-link <?= str_contains($currentUri, '/team-leader/dashboard') ? 'active' : '' ?>">
@@ -204,6 +212,13 @@
                 <a href="/bestdealcrm/team-leader/notifications" class="nav-link <?= str_contains($currentUri, '/notifications') ? 'active' : '' ?>">
                     <i class="bi bi-bell"></i> Notifications
                 </a>
+                <div class="nav-section">Tools</div>
+                <a href="/bestdealcrm/tools/calculator" class="nav-link <?= str_contains($currentUri, '/tools/calculator') ? 'active' : '' ?>">
+                    <i class="bi bi-calculator"></i> EMI Calculator
+                </a>
+                <a href="/bestdealcrm/tools/eligibility" class="nav-link <?= str_contains($currentUri, '/tools/eligibility') ? 'active' : '' ?>">
+                    <i class="bi bi-bank"></i> Eligibility Checker
+                </a>
 
             <?php elseif ($role === 'agent'): ?>
                 <div class="nav-section">Main</div>
@@ -215,6 +230,13 @@
                 </a>
                 <a href="/bestdealcrm/agent/notifications" class="nav-link <?= str_contains($currentUri, '/notifications') ? 'active' : '' ?>">
                     <i class="bi bi-bell"></i> Notifications
+                </a>
+                <div class="nav-section">Tools</div>
+                <a href="/bestdealcrm/tools/calculator" class="nav-link <?= str_contains($currentUri, '/tools/calculator') ? 'active' : '' ?>">
+                    <i class="bi bi-calculator"></i> EMI Calculator
+                </a>
+                <a href="/bestdealcrm/tools/eligibility" class="nav-link <?= str_contains($currentUri, '/tools/eligibility') ? 'active' : '' ?>">
+                    <i class="bi bi-bank"></i> Eligibility Checker
                 </a>
 
             <?php elseif ($role === 'login_agent'): ?>
@@ -228,6 +250,13 @@
                 <a href="/bestdealcrm/login-agent/notifications" class="nav-link <?= str_contains($currentUri, '/notifications') ? 'active' : '' ?>">
                     <i class="bi bi-bell"></i> Notifications
                 </a>
+                <div class="nav-section">Tools</div>
+                <a href="/bestdealcrm/tools/calculator" class="nav-link <?= str_contains($currentUri, '/tools/calculator') ? 'active' : '' ?>">
+                    <i class="bi bi-calculator"></i> EMI Calculator
+                </a>
+                <a href="/bestdealcrm/tools/eligibility" class="nav-link <?= str_contains($currentUri, '/tools/eligibility') ? 'active' : '' ?>">
+                    <i class="bi bi-bank"></i> Eligibility Checker
+                </a>
 
             <?php elseif ($role === 'underwriting'): ?>
                 <div class="nav-section">Main</div>
@@ -240,6 +269,13 @@
                 <a href="/bestdealcrm/underwriting/notifications" class="nav-link <?= str_contains($currentUri, '/notifications') ? 'active' : '' ?>">
                     <i class="bi bi-bell"></i> Notifications
                 </a>
+                <div class="nav-section">Tools</div>
+                <a href="/bestdealcrm/tools/calculator" class="nav-link <?= str_contains($currentUri, '/tools/calculator') ? 'active' : '' ?>">
+                    <i class="bi bi-calculator"></i> EMI Calculator
+                </a>
+                <a href="/bestdealcrm/tools/eligibility" class="nav-link <?= str_contains($currentUri, '/tools/eligibility') ? 'active' : '' ?>">
+                    <i class="bi bi-bank"></i> Eligibility Checker
+                </a>
 
             <?php elseif ($role === 'dispatch'): ?>
                 <div class="nav-section">Main</div>
@@ -251,6 +287,13 @@
                 </a>
                 <a href="/bestdealcrm/dispatch/notifications" class="nav-link <?= str_contains($currentUri, '/notifications') ? 'active' : '' ?>">
                     <i class="bi bi-bell"></i> Notifications
+                </a>
+                <div class="nav-section">Tools</div>
+                <a href="/bestdealcrm/tools/calculator" class="nav-link <?= str_contains($currentUri, '/tools/calculator') ? 'active' : '' ?>">
+                    <i class="bi bi-calculator"></i> EMI Calculator
+                </a>
+                <a href="/bestdealcrm/tools/eligibility" class="nav-link <?= str_contains($currentUri, '/tools/eligibility') ? 'active' : '' ?>">
+                    <i class="bi bi-bank"></i> Eligibility Checker
                 </a>
             <?php endif; ?>
         </nav>
