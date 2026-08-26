@@ -146,10 +146,10 @@ class Lead
                 // Pending = no disposition set (try both columns)
                 $pendingParts = [];
                 if ($this->hasColumnStatic('leads', 'disposition')) {
-                    $pendingParts[] = '(l.disposition IS NULL OR l.disposition = \"\")';
+                    $pendingParts[] = "(l.disposition IS NULL OR l.disposition = '')";
                 }
                 if ($this->hasColumnStatic('leads', 'agent_disposition')) {
-                    $pendingParts[] = '(l.agent_disposition IS NULL OR l.agent_disposition = \"\")';
+                    $pendingParts[] = "(l.agent_disposition IS NULL OR l.agent_disposition = '')";
                 }
                 if (!empty($pendingParts)) {
                     $where .= ' AND (' . implode(' AND ', $pendingParts) . ')';
