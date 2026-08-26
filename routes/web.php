@@ -48,6 +48,8 @@ $router->middleware(['AuthMiddleware'], function ($router) {
     // Agent: Data Entry
     $router->get('/agent/data-entry', 'ServicesController', 'dataEntry');
     $router->post('/agent/data-entry/submit', 'ServicesController', 'dataEntrySubmit');
+    $router->post('/agent/data-entry/update', 'ServicesController', 'dataEntryUpdate');
+    $router->post('/agent/data-entry/update-field', 'ServicesController', 'dataEntryUpdateField');
 
     // ========================================================
     // ADMIN ROUTES

@@ -1,10 +1,101 @@
-<div class="row">
-    <div class="col-md-8">
-        <div class="card shadow-sm border-0">
-            <div class="card-header bg-danger text-white">
-                <h5 class="mb-0"><i class="bi bi-credit-card me-2"></i>Add New CIBIL Request</h5>
+<div class="page-header d-flex justify-content-between align-items-center">
+    <h4><i class="bi bi-credit-card me-2"></i>CIBIL Requests</h4>
+    <button class="btn btn-danger" data-bs-toggle="modal" data-bs-target="#cibilModal">
+        <i class="bi bi-plus-lg me-1"></i> New CIBIL Request
+    </button>
+</div>
+
+<!-- Recent Requests Table -->
+<div class="table-container">
+    <div class="table-responsive">
+        <table class="table table-hover table-sm align-middle mb-0" style="min-width:1100px">
+            <thead class="table-light">
+                <tr>
+                    <th>ID</th>
+                    <th>Date</th>
+                    <th>Customer Name</th>
+                    <th>PAN</th>
+                    <th>Mobile</th>
+                    <th>Loan Type</th>
+                    <th>Salary</th>
+                    <th>Requirement</th>
+                    <th>Admin Status</th>
+                    <th>Actual CIBIL</th>
+                    <th>Reply</th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php if (empty($recent)): ?>
+                    <tr><td colspan="11" class="text-center text-muted py-4">No CIBIL requests yet. Click <strong>+ New CIBIL Request</strong> to start.</td></tr>
+                <?php else: ?>
+                    <?php foreach ($recent as $r): ?>
+                        <tr>
+                            <td><?= $r['id'] ?></td>
+                            <td><small class="text-muted"><?= date('d-m-Y', strtotime($r['created_at'])) ?></small></td>
+                            <td><strong><?= htmlspecialchars($r['name_as_pan']) ?></strong></td>
+                            <td><code><?= htmlspecialchars($r['pan_no']) ?></code></td>
+                            <td><?= htmlspecialchars($r['mobile']) ?></td>
+                            <td><span class="badge bg-light text-dark"><?= htmlspecialchars($r['loan_type']) ?></span></td>
+                            <td>₹<?= number_format((int)str_replace(['₹',','], '', $r['monthly_salary'])) ?></td>
+                            <td><small><?= htmlspecialchars($r['requirement'] ?? '—') ?></small></td>
+                            <td>
+                                <?php if ($r['status'] === 'replied'): ?>
+                                    <span class="badge bg-success">Replied</span>
+                                <?php else: ?>
+                                    <span class="badge bg-warning text-dark">Pending</span>
+                                <?php endif; ?>
+                            </td>
+                            <td>
+                                <?php if ($r['cibil_score_actual']): ?>
+                                    <span class="badge bg-<?= $r['cibil_score_actual'] >= 750 ? 'success' : ($r['cibil_score_actual'] >= 650 ? 'warning' : 'danger') ?>">
+                                        <?= $r['cibil_score_actual'] ?>
+                                    </span>
+                                <?php else: ?>
+                                    <span class="text-muted">—</span>
+                                <?php endif; ?>
+                            </td>
+                            <td>
+                                <?php if ($r['status'] === 'replied'): ?>
+                                    <div class="dropdown">
+                                        <button class="btn btn-sm btn-outline-info dropdown-toggle" data-bs-toggle="dropdown">
+                                            <i class="bi bi-eye"></i> View
+                                        </button>
+                                        <ul class="dropdown-menu dropdown-menu-end" style="min-width:280px">
+                                            <li class="px-3 py-2">
+                                                <small><strong>Main Status:</strong> <?= htmlspecialchars($r['main_status'] ?? 'N/A') ?></small><br>
+                                                <small><strong>Sub Status:</strong> <?= htmlspecialchars($r['sub_status'] ?? 'N/A') ?></small><br>
+                                                <small><strong>CIBIL Company:</strong> <?= htmlspecialchars($r['cibil_company'] ?? 'N/A') ?></small><br>
+                                                <small><strong>Admin Remarks:</strong> <?= htmlspecialchars($r['admin_remarks'] ?? '—') ?></small>
+                                            </li>
+                                            <?php if ($r['cibil_pdf1']): ?>
+                                                <li><a class="dropdown-item" href="<?= BASE_URL ?>/public/uploads/cibil/<?= htmlspecialchars($r['cibil_pdf1']) ?>" target="_blank"><i class="bi bi-file-pdf me-2 text-danger"></i>CIBIL Report 1</a></li>
+                                            <?php endif; ?>
+                                            <?php if ($r['cibil_pdf2']): ?>
+                                                <li><a class="dropdown-item" href="<?= BASE_URL ?>/public/uploads/cibil/<?= htmlspecialchars($r['cibil_pdf2']) ?>" target="_blank"><i class="bi bi-file-pdf me-2 text-danger"></i>CIBIL Report 2</a></li>
+                                            <?php endif; ?>
+                                        </ul>
+                                    </div>
+                                <?php else: ?>
+                                    <span class="text-muted">—</span>
+                                <?php endif; ?>
+                            </td>
+                        </tr>
+                    <?php endforeach; ?>
+                <?php endif; ?>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- New CIBIL Request Modal -->
+<div class="modal fade" id="cibilModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title"><i class="bi bi-credit-card me-2"></i>Add New CIBIL Request</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
             </div>
-            <div class="card-body">
+            <div class="modal-body">
                 <form id="cibilForm">
                     <div class="row g-3">
                         <div class="col-md-6">
@@ -39,7 +130,6 @@
                                 <option value="BT + Top Up">BT + Top Up</option>
                                 <option value="Top Up">Top Up</option>
                                 <option value="Personal Loan">Personal Loan</option>
-                                <option value="Home Loan">Home Loan</option>
                             </select>
                         </div>
                         <div class="col-md-6">
@@ -62,72 +152,38 @@
                             </select>
                         </div>
                     </div>
-                    <div class="mt-4">
-                        <button type="submit" class="btn btn-danger btn-lg" id="submitBtn">
-                            <i class="bi bi-send me-2"></i>Submit CIBIL Request
-                        </button>
-                    </div>
                 </form>
             </div>
-        </div>
-    </div>
-
-    <div class="col-md-4">
-        <div class="card shadow-sm border-0">
-            <div class="card-header bg-secondary text-white">
-                <h6 class="mb-0"><i class="bi bi-clock-history me-2"></i>Recent CIBIL Requests</h6>
-            </div>
-            <div class="card-body p-0" style="max-height:500px;overflow-y:auto">
-                <?php if (empty($recent)): ?>
-                    <p class="text-muted p-3">No requests yet.</p>
-                <?php else: ?>
-                    <?php foreach ($recent as $r): ?>
-                        <div class="border-bottom p-3">
-                            <div class="d-flex justify-content-between">
-                                <strong><?= htmlspecialchars($r['name_as_pan']) ?></strong>
-                                <span class="badge bg-<?= $r['status'] === 'replied' ? 'success' : 'warning' ?>">
-                                    <?= ucfirst($r['status']) ?>
-                                </span>
-                            </div>
-                            <small class="text-muted">PAN: <?= htmlspecialchars($r['pan_no']) ?> · <?= htmlspecialchars($r['loan_type']) ?></small><br>
-                            <small class="text-muted"><?= date('d M Y, h:i A', strtotime($r['created_at'])) ?></small>
-                            <?php if ($r['status'] === 'replied' && $r['cibil_score_actual']): ?>
-                                <div class="mt-2 p-2 rounded" style="background:#f0fdf4">
-                                    <small><strong>Actual CIBIL:</strong> <?= $r['cibil_score_actual'] ?></small>
-                                    <?php if ($r['cibil_company']): ?>
-                                        <br><small><strong>Company:</strong> <?= htmlspecialchars($r['cibil_company']) ?></small>
-                                    <?php endif; ?>
-                                </div>
-                            <?php endif; ?>
-                        </div>
-                    <?php endforeach; ?>
-                <?php endif; ?>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-danger" id="cibilSubmitBtn" onclick="submitCibil()">
+                    <i class="bi bi-send me-1"></i>Submit
+                </button>
             </div>
         </div>
     </div>
 </div>
 
 <script>
-document.getElementById('cibilForm').addEventListener('submit', async function(e) {
-    e.preventDefault();
-    const btn = document.getElementById('submitBtn');
+async function submitCibil() {
+    const form = document.getElementById('cibilForm');
+    if (!form.checkValidity()) { form.reportValidity(); return; }
+    const btn = document.getElementById('cibilSubmitBtn');
     btn.disabled = true;
     btn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> Submitting...';
-
     try {
-        const formData = new FormData(this);
+        const formData = new FormData(form);
         formData.append('_csrf_token', CSRF_TOKEN);
         const result = await ajaxPost(BASE_URL + '/services/cibil/submit', formData);
         if (result && result.success) {
             showToast(result.message, 'success');
-            setTimeout(() => location.reload(), 1500);
+            bootstrap.Modal.getInstance(document.getElementById('cibilModal')).hide();
+            setTimeout(() => location.reload(), 1000);
         } else {
             showToast(result.error || 'Failed', 'danger');
         }
-    } catch(err) {
-        showToast('Error: ' + err.message, 'danger');
-    }
+    } catch(err) { showToast('Error: ' + err.message, 'danger'); }
     btn.disabled = false;
-    btn.innerHTML = '<i class="bi bi-send me-2"></i>Submit CIBIL Request';
-});
+    btn.innerHTML = '<i class="bi bi-send me-1"></i>Submit';
+}
 </script>

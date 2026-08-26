@@ -436,6 +436,79 @@ class ServicesController extends BaseController
         }
     }
 
+    /** Agent: Update Data Entry */
+    public function dataEntryUpdate(): void
+    {
+        try {
+            if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+                $this->json(['error' => 'Invalid request.'], 405);
+                return;
+            }
+
+            $user = currentUser();
+            $id = (int)($_POST['id'] ?? 0);
+
+            $entry = $this->db->fetchOne('SELECT * FROM crm_entries WHERE id = ? AND user_id = ?', [$id, $user['id']]);
+            if (!$entry) {
+                $this->json(['error' => 'Entry not found or unauthorized.'], 404);
+                return;
+            }
+
+            $data = [
+                'mobile_no'     => trim($_POST['mobile_no'] ?? ''),
+                'customer_name' => trim($_POST['customer_name'] ?? ''),
+                'city'          => trim($_POST['city'] ?? ''),
+                'salary'        => trim($_POST['salary'] ?? ''),
+                'loan_amount'   => trim($_POST['loan_amount'] ?? ''),
+                'disposition'   => trim($_POST['disposition'] ?? ''),
+                'remarks'       => trim($_POST['remarks'] ?? ''),
+            ];
+
+            $this->db->update('crm_entries', $data, 'id = ?', [$id]);
+            logActivity($user['id'], 'crm_entry_updated', 'crm_entry', $id);
+
+            $this->json(['success' => true, 'message' => 'Entry updated!']);
+        } catch (\Throwable $e) {
+            error_log('Data entry update error: ' . $e->getMessage());
+            $this->json(['error' => 'Update failed: ' . $e->getMessage()], 500);
+        }
+    }
+
+    /** Agent: Inline update single field */
+    public function dataEntryUpdateField(): void
+    {
+        try {
+            if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+                $this->json(['error' => 'Invalid request.'], 405);
+                return;
+            }
+
+            $user = currentUser();
+            $id = (int)($_POST['id'] ?? 0);
+            $field = trim($_POST['field'] ?? '');
+            $value = trim($_POST['value'] ?? '');
+
+            $entry = $this->db->fetchOne('SELECT * FROM crm_entries WHERE id = ? AND user_id = ?', [$id, $user['id']]);
+            if (!$entry) {
+                $this->json(['error' => 'Entry not found or unauthorized.'], 404);
+                return;
+            }
+
+            $allowedFields = ['disposition', 'remarks', 'mobile_no', 'customer_name', 'city', 'salary', 'loan_amount'];
+            if (!in_array($field, $allowedFields)) {
+                $this->json(['error' => 'Invalid field.'], 400);
+                return;
+            }
+
+            $this->db->update('crm_entries', [$field => $value], 'id = ?', [$id]);
+
+            $this->json(['success' => true, 'message' => ucfirst(str_replace('_', ' ', $field)) . ' updated.']);
+        } catch (\Throwable $e) {
+            error_log('Data entry field update error: ' . $e->getMessage());
+            $this->json(['error' => 'Update failed: ' . $e->getMessage()], 500);
+        }
+    }
+
     /** Admin: Data Entry Dashboard */
     public function dataDashboard(): void
     {
