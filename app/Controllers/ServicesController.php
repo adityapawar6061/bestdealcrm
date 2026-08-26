@@ -108,9 +108,8 @@ class ServicesController extends BaseController
     }
 
     /** Admin: Verify PF Request */
-    public function pfVerify(): void
+    public function pfVerify(int $id = 0): void
     {
-        $id = (int)($_GET['id'] ?? 0);
         $row = $this->db->fetchOne(
             "SELECT p.*, u.name as agent_name FROM pf_requests p LEFT JOIN users u ON p.agent_id = u.id WHERE p.id = ?",
             [$id]
@@ -283,9 +282,8 @@ class ServicesController extends BaseController
     }
 
     /** Admin: Verify CIBIL Request */
-    public function cibilVerify(): void
+    public function cibilVerify(int $id = 0): void
     {
-        $id = (int)($_GET['id'] ?? 0);
         $row = $this->db->fetchOne(
             "SELECT c.*, u.name as agent_name FROM cibil_requests c LEFT JOIN users u ON c.agent_id = u.id WHERE c.id = ?",
             [$id]

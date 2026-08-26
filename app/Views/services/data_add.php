@@ -1,8 +1,9 @@
 <div class="row justify-content-center">
     <div class="col-md-6">
         <div class="card shadow-sm border-0">
-            <div class="card-header bg-success text-white">
+            <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
                 <h5 class="mb-0"><i class="bi bi-plus-circle me-2"></i>Add Data Entry</h5>
+                <a href="<?= BASE_URL ?>/admin/data-dashboard" class="btn btn-sm btn-light"><i class="bi bi-arrow-left me-1"></i>Dashboard</a>
             </div>
             <div class="card-body">
                 <form id="addDataForm">
