@@ -1,6 +1,13 @@
 <div class="page-header d-flex justify-content-between align-items-center">
     <h4><i class="bi bi-list-ul me-2"></i>All Leads</h4>
-    <a href="/bestdealcrm/admin/leads/upload" class="btn btn-primary btn-sm"><i class="bi bi-cloud-upload me-1"></i> Upload Leads</a>
+    <div class="d-flex gap-2">
+        <a href="/bestdealcrm/admin/leads/reassign" class="btn btn-warning btn-sm">
+            <i class="bi bi-arrow-left-right me-1"></i> Reassign
+        </a>
+        <a href="/bestdealcrm/admin/leads/upload" class="btn btn-primary btn-sm">
+            <i class="bi bi-cloud-upload me-1"></i> Upload Leads
+        </a>
+    </div>
 </div>
 
 <!-- Filters -->
@@ -32,18 +39,33 @@
     </form>
 </div>
 
+<!-- Bulk Actions -->
+<div id="bulkActions" class="table-container mb-2 d-none">
+    <div class="d-flex align-items-center gap-3">
+        <span class="text-muted small"><strong id="selectedCount">0</strong> selected</span>
+        <button class="btn btn-danger btn-sm" onclick="deleteSelectedLeads()">
+            <i class="bi bi-trash me-1"></i> Delete Selected
+        </button>
+        <button class="btn btn-sm btn-outline-danger" onclick="clearSelection()">Cancel</button>
+    </div>
+</div>
+
 <div class="table-container">
     <div class="table-responsive">
         <table class="table table-hover table-sm align-middle mb-0">
             <thead class="table-light">
-                <tr><th>#</th><th>Customer</th><th>Mobile</th><th>Location</th><th>Bank</th><th>Assigned To</th><th>Stage</th><th>Created</th><th>Actions</th></tr>
+                <tr>
+                    <th style="width:40px"><input type="checkbox" id="selectAll" onchange="toggleSelectAll(this)"></th>
+                    <th>#</th><th>Customer</th><th>Mobile</th><th>Location</th><th>Bank</th><th>Assigned To</th><th>Stage</th><th>Created</th><th>Actions</th>
+                </tr>
             </thead>
             <tbody>
                 <?php if (empty($leads['data'])): ?>
-                    <tr><td colspan="9" class="text-center py-4 text-muted">No leads found.</td></tr>
+                    <tr><td colspan="10" class="text-center py-4 text-muted">No leads found.</td></tr>
                 <?php else: ?>
                     <?php foreach ($leads['data'] as $lead): ?>
                     <tr>
+                        <td><input type="checkbox" class="lead-checkbox" value="<?= $lead['id'] ?>" onchange="updateSelection()"></td>
                         <td><?= $lead['id'] ?></td>
                         <td><strong><?= htmlspecialchars($lead['customer_name'] ?? '-') ?></strong></td>
                         <td><?= htmlspecialchars($lead['mobile_number'] ?? '-') ?></td>
@@ -73,3 +95,44 @@
     </div>
     <?php endif; ?>
 </div>
+
+<script>
+function toggleSelectAll(el) {
+    var checked = el.checked;
+    document.querySelectorAll('.lead-checkbox').forEach(function(cb) { cb.checked = checked; });
+    updateSelection();
+}
+
+function updateSelection() {
+    var count = document.querySelectorAll('.lead-checkbox:checked').length;
+    document.getElementById('selectedCount').textContent = count;
+    document.getElementById('bulkActions').classList.toggle('d-none', count === 0);
+}
+
+function clearSelection() {
+    document.querySelectorAll('.lead-checkbox').forEach(function(cb) { cb.checked = false; });
+    document.getElementById('selectAll').checked = false;
+    updateSelection();
+}
+
+function deleteSelectedLeads() {
+    var ids = [];
+    document.querySelectorAll('.lead-checkbox:checked').forEach(function(cb) { ids.push(cb.value); });
+    if (ids.length === 0) { showToast('No leads selected.', 'warning'); return; }
+    if (!confirm('Are you sure you want to delete ' + ids.length + ' lead(s)? This cannot be undone.')) return;
+
+    var formData = new FormData();
+    ids.forEach(function(id) { formData.append('lead_ids[]', id); });
+
+    ajaxPost(BASE_URL + '/admin/leads/delete', formData).then(function(result) {
+        if (result && result.success) {
+            showToast(result.message, 'success');
+            setTimeout(function() { location.reload(); }, 500);
+        } else {
+            showToast(result.error || 'Delete failed.', 'danger');
+        }
+    }).catch(function(err) {
+        showToast('Server error: ' + err.message, 'danger');
+    });
+}
+</script>

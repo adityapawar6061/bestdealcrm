@@ -69,7 +69,7 @@ class DynamicForm
     /**
      * Get form with sections and fields
      */
-    public function getFullForm(int $formId): ?array
+    public function getFullForm(int $formId, bool $includeHidden = false): ?array
     {
         $form = $this->findById($formId);
         if (!$form) return null;
@@ -80,8 +80,9 @@ class DynamicForm
         );
 
         foreach ($form['sections'] as &$section) {
+            $hiddenFilter = $includeHidden ? '' : ' AND (f.is_hidden IS NULL OR f.is_hidden = 0)';
             $section['fields'] = $this->db->fetchAll(
-                "SELECT * FROM form_fields WHERE section_id = ? ORDER BY display_order",
+                "SELECT f.* FROM form_fields f WHERE f.section_id = ? {$hiddenFilter} ORDER BY f.display_order",
                 [$section['id']]
             );
 

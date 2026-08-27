@@ -44,7 +44,95 @@ function formatResponseDate($d) {
 
 <div class="page-header d-flex justify-content-between align-items-center">
     <h4><i class="bi bi-list-ul me-2"></i>My Leads</h4>
-    <span class="badge bg-primary"><?= number_format($leads['total']) ?> leads</span>
+    <div class="d-flex gap-2 align-items-center">
+        <button class="btn btn-success btn-sm" onclick="new bootstrap.Modal(document.getElementById('newLeadModal')).show()">
+            <i class="bi bi-plus-circle me-1"></i> New Lead
+        </button>
+        <span class="badge bg-primary"><?= number_format($leads['total']) ?> leads</span>
+    </div>
+</div>
+
+<!-- ===== NEW LEAD MODAL ===== -->
+<div class="modal fade" id="newLeadModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-success text-white">
+                <h5 class="modal-title"><i class="bi bi-plus-circle me-2"></i>Add New Lead</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p class="text-muted small mb-3">Fill the required admin data below. After saving, you'll be redirected to the full form.</p>
+                <form id="newLeadForm">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label small fw-semibold">Customer Name *</label>
+                            <input type="text" name="customer_name" class="form-control" required placeholder="Enter customer name">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-semibold">Mobile Number *</label>
+                            <input type="text" name="mobile_number" class="form-control" required placeholder="Enter mobile number" maxlength="15">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label small fw-semibold">Location</label>
+                            <input type="text" name="location" class="form-control" placeholder="City / Area">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label small fw-semibold">State</label>
+                            <input type="text" name="state" class="form-control" placeholder="State">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label small fw-semibold">Bank Name</label>
+                            <select name="bank_name" class="form-select">
+                                <option value="">Select Bank</option>
+                                <option>HDFC</option><option>ICICI</option><option>Axis</option><option>Kotak</option>
+                                <option>SBI</option><option>BOB</option><option>IDFC</option><option>Bajaj</option>
+                                <option>Incred</option><option>Piramal</option><option>IndusInd</option><option>RBL</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label small fw-semibold">Salary</label>
+                            <input type="text" name="salary" class="form-control" placeholder="e.g. 50000">
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label small fw-semibold">Actual Salary</label>
+                            <select name="actual_salary" class="form-select">
+                                <option value="">Select</option>
+                                <?php foreach ($salaryOptions as $sopt): ?>
+                                    <option value="<?= $sopt ?>"><?= $sopt ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label small fw-semibold">Existing LA</label>
+                            <input type="text" name="existing_la" class="form-control" placeholder="Existing loan amount">
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label small fw-semibold">Data Type</label>
+                            <select name="data_type" class="form-select">
+                                <option value="">Select</option>
+                                <option>Fresh</option><option>BT + Top Up</option><option>Top Up</option><option>Personal Loan</option>
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-semibold">Response Date</label>
+                            <input type="text" name="response_date" class="form-control" placeholder="e.g. 09-Aug">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label small fw-semibold">Remark</label>
+                            <input type="text" name="remark" class="form-control" placeholder="Optional remark">
+                        </div>
+                    </div>
+                </form>
+                <div id="newLeadError" class="alert alert-danger mt-3" style="display:none"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-success btn-sm" onclick="submitNewLead()">
+                    <i class="bi bi-check-circle me-1"></i> Save & Fill Form
+                </button>
+            </div>
+        </div>
+    </div>
 </div>
 
 <!-- Disposition Cards -->
@@ -320,5 +408,35 @@ function escapeHtml(text) {
     var div = document.createElement('div');
     div.textContent = text;
     return div.innerHTML;
+}
+
+async function submitNewLead() {
+    var form = document.getElementById('newLeadForm');
+    var formData = new FormData(form);
+    var errDiv = document.getElementById('newLeadError');
+    errDiv.style.display = 'none';
+
+    if (!formData.get('customer_name') || !formData.get('mobile_number')) {
+        errDiv.textContent = 'Customer Name and Mobile Number are required.';
+        errDiv.style.display = 'block';
+        return;
+    }
+
+    try {
+        var result = await ajaxPost(BASE_URL + '/agent/leads/create', formData);
+        if (result && result.success) {
+            showToast(result.message, 'success');
+            bootstrap.Modal.getInstance(document.getElementById('newLeadModal')).hide();
+            setTimeout(function() {
+                window.location.href = BASE_URL + '/agent/leads/' + result.lead_id + '/fill-form';
+            }, 500);
+        } else {
+            errDiv.textContent = result.error || 'Failed to create lead.';
+            errDiv.style.display = 'block';
+        }
+    } catch (err) {
+        errDiv.textContent = 'Server error: ' + (err.message || 'Unknown');
+        errDiv.style.display = 'block';
+    }
 }
 </script>

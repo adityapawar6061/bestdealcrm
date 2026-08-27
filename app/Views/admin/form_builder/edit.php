@@ -4,6 +4,9 @@
         <small class="text-muted">Code: <?= htmlspecialchars($form['code']) ?> | Stage: <?= humanStatus($form['workflow_stage'] ?? '') ?></small>
     </div>
     <div class="d-flex gap-2">
+        <button class="btn btn-outline-warning btn-sm" onclick="showHiddenFields(<?= $form['id'] ?>)">
+            <i class="bi bi-eye-slash me-1"></i> Hidden Fields <?= $hiddenFieldCount > 0 ? '<span class="badge bg-warning text-dark">' . $hiddenFieldCount . '</span>' : '' ?>
+        </button>
         <button class="btn btn-danger btn-sm" onclick="promptDeleteForm(<?= $form['id'] ?>)">
             <i class="bi bi-trash me-1"></i> Delete Form
         </button>
@@ -69,11 +72,32 @@
                 </thead>
                 <tbody>
                     <?php foreach ($section['fields'] as $field): ?>
+                    <?php if (!empty($field['is_hidden'])) continue; ?>
                     <tr id="field-row-<?= $field['id'] ?>">
                         <td><?= $field['display_order'] ?></td>
-                        <td><code class="small"><?= htmlspecialchars($field['field_name']) ?></code></td>
-                        <td><?= htmlspecialchars($field['label']) ?></td>
-                        <td><span class="badge bg-secondary"><?= $field['type'] ?></span></td>
+                        <td>
+                            <?php if (($field['field_type'] ?? 'field') === 'heading'): ?>
+                                <span class="badge bg-info"><i class="bi bi-type-h1"></i> Heading</span>
+                            <?php elseif (($field['field_type'] ?? 'field') === 'subheading'): ?>
+                                <span class="badge bg-secondary"><i class="bi bi-type"></i> Sub-heading</span>
+                            <?php else: ?>
+                                <code class="small"><?= htmlspecialchars($field['field_name']) ?></code>
+                            <?php endif; ?>
+                        </td>
+                        <td>
+                            <?php if (($field['field_type'] ?? 'field') === 'heading'): ?>
+                                <strong class="text-primary" style="font-size:1.1em"><?= htmlspecialchars($field['label']) ?></strong>
+                            <?php elseif (($field['field_type'] ?? 'field') === 'subheading'): ?>
+                                <strong style="font-size:0.95em;color:#555"><?= htmlspecialchars($field['label']) ?></strong>
+                            <?php else: ?>
+                                <?= htmlspecialchars($field['label']) ?>
+                            <?php endif; ?>
+                        </td>
+                        <td>
+                            <?php if (($field['field_type'] ?? 'field') === 'field'): ?>
+                                <span class="badge bg-secondary"><?= $field['type'] ?></span>
+                            <?php endif; ?>
+                        </td>
                         <td><?= $field['required'] ? '<i class="bi bi-check-circle-fill text-success"></i>' : '<i class="bi bi-x text-muted"></i>' ?></td>
                         <td>
                             <?php if (in_array($field['type'], ['dropdown', 'multi-select', 'radio'])): ?>
@@ -95,8 +119,8 @@
                             <button class="btn btn-sm btn-outline-primary me-1" onclick='editField(<?= json_encode($field) ?>)' title="Edit Field">
                                 <i class="bi bi-pencil"></i>
                             </button>
-                            <button class="btn btn-sm btn-outline-danger" onclick="deleteField(<?= $field['id'] ?>)" title="Delete Field">
-                                <i class="bi bi-trash"></i>
+                            <button class="btn btn-sm btn-outline-danger" onclick="softDeleteField(<?= $field['id'] ?>)" title="Hide Field (Soft Delete)">
+                                <i class="bi bi-eye-slash"></i>
                             </button>
                         </td>
                     </tr>
@@ -107,17 +131,17 @@
 
         <!-- Add Field Form -->
         <div class="bg-light rounded p-3">
-            <h6 class="small fw-bold text-muted mb-2"><i class="bi bi-plus-circle me-1"></i> Add New Field</h6>
+            <h6 class="small fw-bold text-muted mb-2"><i class="bi bi-plus-circle me-1"></i> Add New Field / Heading</h6>
             <div class="row g-2">
                 <input type="hidden" name="section_id" value="<?= $section['id'] ?>">
                 <div class="col-md-2">
-                    <input type="text" name="field_name" class="form-control form-control-sm" placeholder="field_name" required pattern="[a-zA-Z0-9_]+">
+                    <input type="text" name="field_name" class="form-control form-control-sm" placeholder="field_name" pattern="[a-zA-Z0-9_]+">
                 </div>
                 <div class="col-md-2">
                     <input type="text" name="label" class="form-control form-control-sm" placeholder="Label" required>
                 </div>
                 <div class="col-md-2">
-                    <select name="type" class="form-select form-select-sm" onchange="toggleOptionsRow(this)">
+                    <select name="type" class="form-select form-select-sm" onchange="toggleOptionsRow(this); toggleFieldRequired(this)">
                         <option value="text">Text</option>
                         <option value="textarea">Textarea</option>
                         <option value="number">Number</option>
@@ -132,14 +156,15 @@
                         <option value="file">File Upload</option>
                         <option value="image">Image Upload</option>
                         <option value="url">URL</option>
-                        <option value="heading">Heading</option>
                         <option value="readonly">Read-only</option>
+                        <option value="heading" class="bg-info text-white">── Heading ──</option>
+                        <option value="subheading" class="bg-secondary text-white">── Sub-heading ──</option>
                     </select>
                 </div>
                 <div class="col-md-2">
                     <input type="text" name="placeholder" class="form-control form-control-sm" placeholder="Placeholder">
                 </div>
-                <div class="col-md-1">
+                <div class="col-md-1 req-col">
                     <div class="form-check mt-1">
                         <input class="form-check-input" type="checkbox" name="required" value="1" id="req_<?= $section['id'] ?>">
                         <label class="form-check-label small" for="req_<?= $section['id'] ?>">Req</label>
@@ -217,6 +242,7 @@
                         <option value="image">Image Upload</option>
                         <option value="url">URL</option>
                         <option value="heading">Heading</option>
+                        <option value="subheading">Sub-heading</option>
                         <option value="readonly">Read-only</option>
                     </select>
                 </div>
@@ -270,7 +296,26 @@
     </div>
 </div>
 
-<!-- ===== PASSWORD DELETE MODAL ===== -->
+<!-- ===== HIDDEN FIELDS (Hard Delete) MODAL ===== -->
+<div class="modal fade" id="hiddenFieldsModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-warning">
+                <h5 class="modal-title"><i class="bi bi-eye-slash me-2"></i>Hidden Fields (Soft Deleted)</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p class="text-muted small">These fields are hidden from the form but their data is preserved. Permanently delete them here.</p>
+                <div id="hiddenFieldsList"><p class="text-muted">Loading...</p></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ===== PASSWORD DELETE FORM MODAL ===== -->
 <div class="modal fade" id="deleteFormModal" tabindex="-1">
     <div class="modal-dialog">
         <div class="modal-content">
@@ -294,6 +339,30 @@
     </div>
 </div>
 
+<!-- ===== PASSWORD HARD DELETE MODAL ===== -->
+<div class="modal fade" id="hardDeleteModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title"><i class="bi bi-exclamation-triangle me-2"></i>Permanently Delete Field</h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p class="fw-bold text-danger">This will permanently delete the field and all its submitted data.</p>
+                <div class="mb-3">
+                    <label class="form-label small fw-semibold">Enter password to confirm:</label>
+                    <input type="password" id="hardDeletePassword" class="form-control" placeholder="Password">
+                </div>
+                <input type="hidden" id="hardDeleteFieldId">
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-danger" onclick="confirmHardDelete()">Delete Permanently</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
 var currentFieldId = null;
 
@@ -304,6 +373,15 @@ function toggleOptionsRow(select) {
         row.style.display = 'flex';
     } else {
         row.style.display = 'none';
+    }
+}
+
+function toggleFieldRequired(select) {
+    var reqCol = select.closest('.row').querySelector('.req-col');
+    if (['heading', 'subheading'].includes(select.value)) {
+        reqCol.style.visibility = 'hidden';
+    } else {
+        reqCol.style.visibility = 'visible';
     }
 }
 
@@ -356,11 +434,84 @@ async function addField(btn, sectionId) {
     else showToast(result.error || 'Failed to add field.', 'danger');
 }
 
-async function deleteField(fieldId) {
-    if (!confirm('Delete this field?')) return;
-    var result = await ajaxPost('/bestdealcrm/admin/form-builder/field/' + fieldId + '/delete', {});
-    if (result.success) location.reload();
-    else showToast(result.error || 'Failed.', 'danger');
+// Soft delete (hide field)
+function softDeleteField(fieldId) {
+    if (!confirm('Hide this field? It will be moved to Hidden Fields where you can restore or permanently delete it.')) return;
+    ajaxPost('/bestdealcrm/admin/form-builder/field/' + fieldId + '/delete', {}).then(function(result) {
+        if (result.success) {
+            showToast(result.message, 'success');
+            location.reload();
+        } else {
+            showToast(result.error || 'Failed.', 'danger');
+        }
+    });
+}
+
+// Show hidden fields
+async function showHiddenFields(formId) {
+    var modal = new bootstrap.Modal(document.getElementById('hiddenFieldsModal'));
+    document.getElementById('hiddenFieldsList').innerHTML = '<p class="text-muted">Loading...</p>';
+    modal.show();
+
+    var result = await ajaxGet('/bestdealcrm/admin/form-builder/' + formId + '/hidden-fields');
+    var container = document.getElementById('hiddenFieldsList');
+
+    if (!result || !result.success || result.fields.length === 0) {
+        container.innerHTML = '<div class="text-center py-3"><i class="bi bi-check-circle text-success me-2"></i>No hidden fields.</div>';
+        return;
+    }
+
+    var html = '<table class="table table-sm table-bordered"><thead class="table-light"><tr>';
+    html += '<th>Section</th><th>Field Name</th><th>Label</th><th>Type</th><th>Actions</th>';
+    html += '</tr></thead><tbody>';
+    result.fields.forEach(function(f) {
+        html += '<tr>';
+        html += '<td>' + escapeHtml(f.section) + '</td>';
+        html += '<td><code>' + escapeHtml(f.field_name) + '</code></td>';
+        html += '<td>' + escapeHtml(f.label) + '</td>';
+        html += '<td><span class="badge bg-secondary">' + f.type + '</span></td>';
+        html += '<td>';
+        html += '<button class="btn btn-sm btn-outline-success me-1" onclick="restoreField(' + f.id + ')" title="Restore"><i class="bi bi-arrow-counterclockwise"></i></button> ';
+        html += '<button class="btn btn-sm btn-outline-danger" onclick="promptHardDelete(' + f.id + ')" title="Delete Permanently"><i class="bi bi-trash"></i></button>';
+        html += '</td></tr>';
+    });
+    html += '</tbody></table>';
+    container.innerHTML = html;
+}
+
+async function restoreField(fieldId) {
+    var result = await ajaxPost('/bestdealcrm/admin/form-builder/field/' + fieldId + '/restore', {});
+    if (result.success) {
+        showToast(result.message, 'success');
+        location.reload();
+    } else {
+        showToast(result.error || 'Failed.', 'danger');
+    }
+}
+
+function promptHardDelete(fieldId) {
+    document.getElementById('hardDeleteFieldId').value = fieldId;
+    document.getElementById('hardDeletePassword').value = '';
+    bootstrap.Modal.getInstance(document.getElementById('hiddenFieldsModal')).hide();
+    new bootstrap.Modal(document.getElementById('hardDeleteModal')).show();
+}
+
+async function confirmHardDelete() {
+    var fieldId = document.getElementById('hardDeleteFieldId').value;
+    var password = document.getElementById('hardDeletePassword').value;
+    if (!password) { showToast('Enter the password.', 'warning'); return; }
+
+    var formData = new FormData();
+    formData.append('password', password);
+
+    var result = await ajaxPost('/bestdealcrm/admin/form-builder/field/' + fieldId + '/hard-delete', formData);
+    if (result.success) {
+        showToast(result.message, 'success');
+        bootstrap.Modal.getInstance(document.getElementById('hardDeleteModal')).hide();
+        location.reload();
+    } else {
+        showToast(result.error || 'Failed.', 'danger');
+    }
 }
 
 // ===== EDIT FIELD =====

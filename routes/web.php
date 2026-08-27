@@ -85,6 +85,14 @@ $router->middleware(['AuthMiddleware'], function ($router) {
             $router->get('/leads/assign/data', 'AdminController', 'assignData');
             $router->post('/leads/assign', 'AdminController', 'processAssignment');
             
+            // Lead Delete
+            $router->post('/leads/delete', 'AdminController', 'deleteLead');
+            
+            // Reassign Leads
+            $router->get('/leads/reassign', 'AdminController', 'reassignLeads');
+            $router->get('/leads/reassign/data', 'AdminController', 'reassignData');
+            $router->post('/leads/reassign', 'AdminController', 'processReassignment');
+            
             // Lead Detail (wildcard last)
             $router->get('/leads/{id}', 'AdminController', 'leadDetail');
             
@@ -126,6 +134,9 @@ $router->middleware(['AuthMiddleware'], function ($router) {
             $router->post('/form-builder/add-field', 'FormBuilderController', 'addField');
             $router->post('/form-builder/field/{id}/update', 'FormBuilderController', 'updateField');
             $router->post('/form-builder/field/{id}/delete', 'FormBuilderController', 'deleteField');
+            $router->post('/form-builder/field/{id}/hard-delete', 'FormBuilderController', 'hardDeleteField');
+            $router->post('/form-builder/field/{id}/restore', 'FormBuilderController', 'restoreField');
+            $router->get('/form-builder/{id}/hidden-fields', 'FormBuilderController', 'hiddenFields');
             
             // Form Builder - Field Options
             $router->post('/form-builder/field/{id}/options', 'FormBuilderController', 'getFieldOptions');
@@ -174,6 +185,7 @@ $router->middleware(['AuthMiddleware'], function ($router) {
         $router->get('/dashboard', 'AgentController', 'dashboard');
         $router->get('/leads', 'AgentController', 'leads');
         $router->get('/leads/data', 'AgentController', 'leadsAjax');
+        $router->post('/leads/create', 'AgentController', 'createLead');
         $router->get('/leads/{id}', 'AgentController', 'leadDetail');
         $router->get('/leads/{id}/fill-form', 'AgentController', 'fillForm');
         $router->post('/leads/save-draft', 'AgentController', 'saveDraft');

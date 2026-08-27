@@ -72,10 +72,23 @@ class FormBuilderController extends BaseController
 
     public function edit(int $id): void
     {
+        $this->ensureFieldColumns();
         $form = $this->formModel->getFullForm($id);
         if (!$form) {
             $this->redirect('/admin/form-builder', 'error', 'Form not found.');
             return;
+        }
+
+        // Count hidden fields
+        $hiddenCount = 0;
+        foreach ($form['sections'] as $section) {
+            $allFields = $this->db->fetchAll(
+                "SELECT is_hidden FROM form_fields WHERE section_id = ?",
+                [$section['id']]
+            );
+            foreach ($allFields as $f) {
+                if (!empty($f['is_hidden'])) $hiddenCount++;
+            }
         }
 
         $allRoles = $this->db->fetchAll("SELECT * FROM roles ORDER BY name");
@@ -90,6 +103,7 @@ class FormBuilderController extends BaseController
             'form'            => $form,
             'allRoles'        => $allRoles,
             'assignedRoleIds' => $assignedRoleIds,
+            'hiddenFieldCount' => $hiddenCount,
         ]);
     }
 
@@ -180,11 +194,23 @@ class FormBuilderController extends BaseController
             'editable_roles'=> $_POST['editable_roles'] ?? '',
         ];
 
+        $this->ensureFieldColumns();
         $maxOrder = $this->db->fetchOne(
             "SELECT COALESCE(MAX(display_order), 0) + 1 as next_order FROM form_fields WHERE section_id = ?",
             [$sectionId]
         );
         $fieldData['display_order'] = $maxOrder['next_order'];
+
+        // Handle heading/subheading types
+        $fieldType = $_POST['field_type'] ?? 'field';
+        if (in_array($fieldData['type'], ['heading', 'subheading'])) {
+            $fieldType = $fieldData['type'];
+            // Generate field_name for headings if empty
+            if (empty($fieldData['field_name'])) {
+                $fieldData['field_name'] = 'heading_' . substr(bin2hex(random_bytes(4)), 0, 8);
+            }
+        }
+        $fieldData['field_type'] = $fieldType;
 
         $id = $this->formModel->createField($fieldData);
 
@@ -228,13 +254,91 @@ class FormBuilderController extends BaseController
     }
 
     /**
-     * Delete a field via AJAX
+     * Soft delete a field (hide it, keep data)
      */
     public function deleteField(int $id): void
     {
         if ($_SERVER['REQUEST_METHOD'] === 'POST' || $_SERVER['REQUEST_METHOD'] === 'DELETE') {
+            // Ensure is_hidden column exists
+            $this->ensureFieldColumns();
+            $this->db->update('form_fields', ['is_hidden' => 1], 'id = ?', [$id]);
+            $this->json(['success' => true, 'message' => 'Field hidden (soft deleted).']);
+        }
+    }
+
+    /**
+     * Hard delete - permanently remove a soft-deleted field
+     */
+    public function hardDeleteField(int $id): void
+    {
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            $password = $_POST['password'] ?? '';
+            if ($password !== '12345678') {
+                $this->json(['error' => 'Incorrect password.'], 403);
+                return;
+            }
             $this->formModel->deleteField($id);
-            $this->json(['success' => true, 'message' => 'Field deleted.']);
+            $this->json(['success' => true, 'message' => 'Field permanently deleted.']);
+        }
+    }
+
+    /**
+     * Restore a soft-deleted field
+     */
+    public function restoreField(int $id): void
+    {
+        if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+            $this->ensureFieldColumns();
+            $this->db->update('form_fields', ['is_hidden' => 0], 'id = ?', [$id]);
+            $this->json(['success' => true, 'message' => 'Field restored.']);
+        }
+    }
+
+    /**
+     * Get hidden (soft-deleted) fields for hard delete
+     */
+    public function hiddenFields(int $formId): void
+    {
+        $this->ensureFieldColumns();
+        $form = $this->formModel->getFullForm($formId);
+        $hiddenFields = [];
+        if ($form) {
+            foreach ($form['sections'] as $section) {
+                foreach ($section['fields'] as $field) {
+                    if (!empty($field['is_hidden'])) {
+                        $hiddenFields[] = [
+                            'id' => $field['id'],
+                            'section' => $section['name'],
+                            'field_name' => $field['field_name'],
+                            'label' => $field['label'],
+                            'type' => $field['type'],
+                        ];
+                    }
+                }
+            }
+        }
+        $this->json(['success' => true, 'fields' => $hiddenFields]);
+    }
+
+    /**
+     * Ensure is_hidden column exists in form_fields
+     */
+    private function ensureFieldColumns(): void
+    {
+        try {
+            $cols = $this->db->fetchAll(
+                "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'form_fields'"
+            );
+            $colNames = array_column($cols, 'COLUMN_NAME');
+            if (!in_array('is_hidden', $colNames)) {
+                $this->db->query("ALTER TABLE `form_fields` ADD COLUMN `is_hidden` TINYINT(1) DEFAULT 0");
+            }
+            // Also ensure field_type column for heading/subheading
+            if (!in_array('field_type', $colNames)) {
+                $this->db->query("ALTER TABLE `form_fields` ADD COLUMN `field_type` VARCHAR(50) DEFAULT 'field'");
+            }
+        } catch (\Throwable $e) {
+            // Ignore - columns may already exist
         }
     }
 

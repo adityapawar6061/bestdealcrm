@@ -45,6 +45,47 @@ class LoginAgentController extends BaseController
 
         $leads = $this->leadModel->getByAgent($user['id'], $filters, $page);
 
+        // Enrich leads with agent submissions and documents
+        foreach ($leads['data'] as &$lead) {
+            // Get agent's submitted form data
+            $agentSubmission = $this->db->fetchOne(
+                "SELECT fs.* FROM form_submissions fs 
+                 JOIN users u ON fs.submitted_by = u.id
+                 JOIN roles r ON u.role_id = r.id
+                 WHERE fs.lead_id = ? AND r.name = 'agent' 
+                 ORDER BY fs.created_at DESC LIMIT 1",
+                [$lead['id']]
+            );
+            $lead['agent_submission'] = $agentSubmission;
+            
+            if ($agentSubmission) {
+                $values = $this->db->fetchAll(
+                    "SELECT fsv.*, ff.label, ff.type, ff.field_name
+                     FROM form_submission_values fsv
+                     JOIN form_fields ff ON fsv.field_id = ff.id
+                     WHERE fsv.submission_id = ?",
+                    [$agentSubmission['id']]
+                );
+                $lead['agent_values'] = $values;
+            } else {
+                $lead['agent_values'] = [];
+            }
+            
+            // Get documents
+            $lead['documents'] = $this->db->fetchAll(
+                "SELECT * FROM documents WHERE lead_id = ? ORDER BY created_at DESC",
+                [$lead['id']]
+            );
+            
+            // Get remarks from various stages
+            $lead['remarks'] = $this->db->fetchAll(
+                "SELECT r.*, u.name as user_name FROM remarks r 
+                 LEFT JOIN users u ON r.user_id = u.id
+                 WHERE r.lead_id = ? ORDER BY r.created_at DESC",
+                [$lead['id']]
+            );
+        }
+
         $this->view('login_agent/cases', [
             'title'  => 'Assigned Cases',
             'leads'  => $leads,

@@ -1430,4 +1430,205 @@ class AdminController extends BaseController
         readfile($filePath);
         exit;
     }
+
+    // ========== LEAD DELETE ==========
+
+    public function deleteLead(): void
+    {
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            $this->json(['error' => 'Invalid request.'], 405);
+            return;
+        }
+
+        $leadIds = $_POST['lead_ids'] ?? [];
+        if (empty($leadIds)) {
+            $this->json(['error' => 'No leads selected.'], 400);
+            return;
+        }
+
+        $count = 0;
+        $errors = [];
+        $this->db->beginTransaction();
+        try {
+            foreach ($leadIds as $leadId) {
+                $leadId = (int)$leadId;
+                if ($leadId <= 0) continue;
+                try {
+                    // Delete related data first
+                    $this->db->delete('form_submission_values', 'submission_id IN (SELECT id FROM form_submissions WHERE lead_id = ?)', [$leadId]);
+                    $this->db->delete('form_submissions', 'lead_id = ?', [$leadId]);
+                    $this->db->delete('lead_assignments', 'lead_id = ?', [$leadId]);
+                    $this->db->delete('workflow_history', 'lead_id = ?', [$leadId]);
+                    $this->db->delete('remarks', 'lead_id = ?', [$leadId]);
+                    $this->db->delete('documents', 'lead_id = ?', [$leadId]);
+                    $this->db->delete('notifications', 'related_lead_id = ?', [$leadId]);
+                    $this->db->delete('leads', 'id = ?', [$leadId]);
+                    $count++;
+                } catch (\Exception $e) {
+                    $errors[] = "Lead #{$leadId}: " . $e->getMessage();
+                }
+            }
+            $this->db->commit();
+        } catch (\Exception $e) {
+            $this->db->rollback();
+            $this->json(['error' => 'Delete failed: ' . $e->getMessage()], 500);
+            return;
+        }
+
+        logActivity(currentUser()['id'], 'leads_deleted', 'lead', null, null, json_encode(['count' => $count]));
+        $msg = "{$count} leads deleted.";
+        if (!empty($errors)) $msg .= ' ' . count($errors) . ' errors.';
+        $this->json(['success' => true, 'message' => $msg, 'errors' => $errors]);
+    }
+
+    // ========== REASSIGN LEADS ==========
+
+    public function reassignLeads(): void
+    {
+        $agents = $this->db->fetchAll(
+            "SELECT u.id, u.name, r.display_name as role_name 
+             FROM users u 
+             JOIN roles r ON u.role_id = r.id 
+             WHERE u.status = 'active' AND r.name IN ('agent', 'login_agent', 'team_leader') 
+             ORDER BY r.display_name, u.name"
+        );
+        $this->view('admin/reassign_leads', [
+            'title'  => 'Reassign Leads',
+            'agents' => $agents,
+        ]);
+    }
+
+    public function reassignData(): void
+    {
+        try {
+            if (isset($_GET['get_filters'])) {
+                $locations = $this->db->fetchAll("SELECT DISTINCT location FROM leads WHERE location IS NOT NULL AND location != '' ORDER BY location");
+                $states = $this->db->fetchAll("SELECT DISTINCT state FROM leads WHERE state IS NOT NULL AND state != '' ORDER BY state");
+                $dataTypes = $this->db->fetchAll("SELECT DISTINCT data_type FROM leads WHERE data_type IS NOT NULL AND data_type != '' ORDER BY data_type");
+                $bankNames = $this->db->fetchAll("SELECT DISTINCT bank_name FROM leads WHERE bank_name IS NOT NULL AND bank_name != '' ORDER BY bank_name");
+                $assignedUsers = $this->db->fetchAll(
+                    "SELECT l.assigned_to, u.name, COUNT(*) as cnt FROM leads l JOIN users u ON l.assigned_to = u.id WHERE l.assigned_to IS NOT NULL GROUP BY l.assigned_to, u.name ORDER BY u.name"
+                );
+
+                $this->json([
+                    'success' => true,
+                    'locations' => array_column($locations, 'location'),
+                    'states' => array_column($states, 'state'),
+                    'data_types' => array_column($dataTypes, 'data_type'),
+                    'bank_names' => array_column($bankNames, 'bank_name'),
+                    'assigned_users' => $assignedUsers,
+                ]);
+                return;
+            }
+
+            $page = max(1, (int)($_GET['page'] ?? 1));
+            $perPage = min(500, max(1, (int)($_GET['per_page'] ?? 50)));
+            $where = 'l.assigned_to IS NOT NULL';
+            $params = [];
+
+            if (!empty($_GET['assigned_to'])) {
+                $where .= ' AND l.assigned_to = ?';
+                $params[] = $_GET['assigned_to'];
+            }
+            if (!empty($_GET['location'])) {
+                $where .= ' AND l.location = ?';
+                $params[] = $_GET['location'];
+            }
+            if (!empty($_GET['state'])) {
+                $where .= ' AND l.state = ?';
+                $params[] = $_GET['state'];
+            }
+            if (!empty($_GET['data_type'])) {
+                $where .= ' AND l.data_type = ?';
+                $params[] = $_GET['data_type'];
+            }
+            if (!empty($_GET['bank_name'])) {
+                $where .= ' AND l.bank_name = ?';
+                $params[] = $_GET['bank_name'];
+            }
+            if (!empty($_GET['search'])) {
+                $s = '%' . $_GET['search'] . '%';
+                $where .= ' AND (l.customer_name LIKE ? OR l.mobile_number LIKE ? OR l.id = ?)';
+                $params[] = $s;
+                $params[] = $s;
+                $params[] = (int)$_GET['search'];
+            }
+
+            $total = $this->db->count('leads l', $where, $params);
+            $totalPages = max(1, ceil($total / $perPage));
+            $page = min($page, $totalPages);
+            $offset = ($page - 1) * $perPage;
+
+            $sql = "SELECT l.id, l.customer_name, l.mobile_number, l.location, l.state,
+                           l.existing_la, l.salary, l.bank_name, l.workflow_stage, l.created_at,
+                           l.assigned_to, u.name as assigned_to_name
+                    FROM leads l
+                    LEFT JOIN users u ON l.assigned_to = u.id
+                    WHERE {$where}
+                    ORDER BY l.created_at DESC
+                    LIMIT {$perPage} OFFSET {$offset}";
+            $data = $this->db->fetchAll($sql, $params);
+
+            $this->json([
+                'success' => true,
+                'data' => $data,
+                'total' => $total,
+                'total_pages' => $totalPages,
+                'page' => $page,
+            ]);
+        } catch (\Throwable $e) {
+            error_log('reassignData ERROR: ' . $e->getMessage());
+            $this->json(['success' => true, 'data' => [], 'total' => 0, 'total_pages' => 1, 'page' => 1]);
+        }
+    }
+
+    public function processReassignment(): void
+    {
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            $this->json(['error' => 'Invalid request.'], 405);
+            return;
+        }
+
+        $leadIds = $_POST['lead_ids'] ?? [];
+        $assignedTo = (int)($_POST['assigned_to'] ?? 0);
+
+        if (empty($leadIds) || !$assignedTo) {
+            $this->json(['error' => 'Please select leads and a user to reassign to.'], 400);
+            return;
+        }
+
+        $targetUser = $this->db->fetchOne("SELECT id, name FROM users WHERE id = ? AND status = 'active'", [$assignedTo]);
+        if (!$targetUser) {
+            $this->json(['error' => 'Selected user not found or inactive.'], 400);
+            return;
+        }
+
+        $count = 0;
+        $errors = [];
+        $this->db->beginTransaction();
+        try {
+            foreach ($leadIds as $leadId) {
+                $leadId = (int)$leadId;
+                if ($leadId <= 0) continue;
+                try {
+                    $this->leadModel->assign($leadId, $assignedTo);
+                    $count++;
+                } catch (\Exception $e) {
+                    $errors[] = "Lead #{$leadId}: " . $e->getMessage();
+                }
+            }
+            $this->db->commit();
+        } catch (\Exception $e) {
+            $this->db->rollback();
+            $this->json(['error' => 'Reassignment failed: ' . $e->getMessage()], 500);
+            return;
+        }
+
+        logActivity(currentUser()['id'], 'leads_reassigned', 'lead', null, null, 
+            json_encode(['count' => $count, 'assigned_to' => $assignedTo, 'target' => $targetUser['name']]));
+
+        $msg = "{$count} leads reassigned to {$targetUser['name']}.";
+        if (!empty($errors)) $msg .= ' ' . count($errors) . ' errors.';
+        $this->json(['success' => true, 'message' => $msg, 'errors' => $errors]);
+    }
 }

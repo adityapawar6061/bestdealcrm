@@ -33,23 +33,6 @@ class AgentController extends BaseController
         ]);
     }
 
-    private function hasColumn(string $table, string $column): bool
-    {
-        static $cache = [];
-        $key = $table . '.' . $column;
-        if (isset($cache[$key])) return $cache[$key];
-        try {
-            $result = $this->db->fetchOne(
-                "SELECT COUNT(*) as cnt FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND COLUMN_NAME = ?",
-                [$table, $column]
-            );
-            $cache[$key] = ($result && (int)$result['cnt'] > 0);
-        } catch (\Throwable $e) {
-            $cache[$key] = false;
-        }
-        return $cache[$key];
-    }
-
     public function leads(): void
     {
         $user = currentUser();
@@ -61,19 +44,16 @@ class AgentController extends BaseController
         ];
         $page = (int)($_GET['page'] ?? 1);
 
-        // Check which disposition columns exist
         $existingCols = $this->getExistingColumns('leads');
         $hasDisposition = in_array('disposition', $existingCols);
         $hasAgentDisposition = in_array('agent_disposition', $existingCols);
 
-        // If filter=pending, override disposition filter
         if ($filters['filter'] === 'pending') {
             $filters['disposition'] = '__pending__';
         }
 
         $leads = $this->leadModel->getByAgent($user['id'], $filters, $page);
 
-        // Disposition stats for cards
         $userId = $user['id'];
         $totalAssigned = $this->db->count('leads', 'assigned_to = ?', [$userId]);
         $pendingDisposition = $totalAssigned;
@@ -106,6 +86,73 @@ class AgentController extends BaseController
         ]);
     }
 
+    /**
+     * Create a new lead (agent fills basic admin data, then goes to form)
+     */
+    public function createLead(): void
+    {
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            $this->json(['error' => 'Invalid request.'], 405);
+            return;
+        }
+
+        $user = currentUser();
+        $data = [
+            'customer_name'   => trim($_POST['customer_name'] ?? ''),
+            'mobile_number'   => trim($_POST['mobile_number'] ?? ''),
+            'location'        => trim($_POST['location'] ?? ''),
+            'state'           => trim($_POST['state'] ?? ''),
+            'salary'          => trim($_POST['salary'] ?? ''),
+            'actual_salary'   => trim($_POST['actual_salary'] ?? ''),
+            'existing_la'     => trim($_POST['existing_la'] ?? ''),
+            'bank_name'       => trim($_POST['bank_name'] ?? ''),
+            'data_type'       => trim($_POST['data_type'] ?? ''),
+            'response_date'   => trim($_POST['response_date'] ?? ''),
+            'remark'          => trim($_POST['remark'] ?? ''),
+        ];
+
+        // Validate required fields
+        if (empty($data['customer_name']) || empty($data['mobile_number'])) {
+            $this->json(['error' => 'Customer Name and Mobile Number are required.'], 422);
+            return;
+        }
+
+        // Check duplicate mobile
+        $existing = $this->leadModel->checkDuplicateMobile($data['mobile_number']);
+        if ($existing) {
+            $this->json(['error' => 'A lead with this mobile number already exists.'], 422);
+            return;
+        }
+
+        // Auto-create required columns
+        $this->ensureColumns();
+
+        // Set lead data
+        $data['workflow_stage'] = 'LEAD_ASSIGNED';
+        $data['assigned_to'] = $user['id'];
+        $data['assigned_at'] = date('Y-m-d H:i:s');
+        $data['created_at'] = date('Y-m-d H:i:s');
+
+        $leadId = $this->leadModel->create($data);
+
+        // Record assignment
+        $this->db->insert('lead_assignments', [
+            'lead_id'     => $leadId,
+            'assigned_to' => $user['id'],
+            'assigned_by' => $user['id'],
+            'assigned_at' => date('Y-m-d H:i:s'),
+            'status'      => 'active',
+        ]);
+
+        // Workflow history
+        $workflowModel = new \Models\Workflow();
+        $workflowModel->transition($leadId, 'LEAD_UPLOADED', 'LEAD_ASSIGNED', $user['id'], 'agent', null, 'agent_created_lead');
+
+        logActivity($user['id'], 'lead_created', 'lead', $leadId);
+
+        $this->json(['success' => true, 'message' => 'Lead created. Redirecting to form...', 'lead_id' => $leadId]);
+    }
+
     public function leadDetail(int $id): void
     {
         $user = currentUser();
@@ -127,9 +174,6 @@ class AgentController extends BaseController
         ]);
     }
 
-    /**
-     * Show the agent lead form for filling
-     */
     public function fillForm(int $id): void
     {
         $leadId = $id;
@@ -141,10 +185,8 @@ class AgentController extends BaseController
             return;
         }
 
-        // Get the agent form
         $forms = $this->formModel->getFormsByStage('AGENT_DRAFT');
         if (empty($forms)) {
-            // Fallback to role-based
             $forms = $this->formModel->getFormsByRole('agent');
         }
 
@@ -155,7 +197,6 @@ class AgentController extends BaseController
 
         $form = $this->formModel->getFullForm($forms[0]['id']);
 
-        // Check for existing draft
         $existingSubmission = $this->db->fetchOne(
             "SELECT * FROM form_submissions WHERE lead_id = ? AND submitted_by = ? AND status IN ('draft', 'submitted') ORDER BY created_at DESC LIMIT 1",
             [$leadId, $user['id']]
@@ -172,8 +213,6 @@ class AgentController extends BaseController
             }
         }
 
-        // Pre-fill fields from lead data and auto-fill agent name
-        // Map label keywords to lead column names for robust matching
         $labelToLead = [
             'customer name'   => 'customer_name',
             'mobile'          => 'mobile_number',
@@ -197,14 +236,11 @@ class AgentController extends BaseController
                 $fn = strtolower(trim($field['field_name'] ?? ''));
                 $fl = strtolower(trim($field['label'] ?? ''));
 
-                // Pre-fill from lead data - match by field_name OR label
                 if (empty($existingValues[$field['id']])) {
                     $leadCol = null;
-                    // Direct field_name match
                     if (isset($labelToLead[$fn])) {
                         $leadCol = $labelToLead[$fn];
                     } else {
-                        // Label-based fuzzy match
                         foreach ($labelToLead as $keyword => $col) {
                             if (strpos($fl, $keyword) !== false || strpos($fn, str_replace(' ', '_', $keyword)) !== false) {
                                 $leadCol = $col;
@@ -217,7 +253,6 @@ class AgentController extends BaseController
                     }
                 }
 
-                // Auto-fill agent name fields
                 if (empty($existingValues[$field['id']]) && (strpos($fn, 'agent_name') !== false || strpos($fn, 'agent name') !== false || strpos($fl, 'agent name') !== false || strpos($fl, 'agent_name') !== false)) {
                     $existingValues[$field['id']] = $user['name'];
                 }
@@ -233,9 +268,6 @@ class AgentController extends BaseController
         ]);
     }
 
-    /**
-     * Save form as draft
-     */
     public function saveDraft(): void
     {
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
@@ -255,7 +287,6 @@ class AgentController extends BaseController
             return;
         }
 
-        // Check for existing submission
         $existing = $this->db->fetchOne(
             "SELECT id FROM form_submissions WHERE lead_id = ? AND submitted_by = ? AND status = 'draft'",
             [$leadId, $user['id']]
@@ -269,7 +300,6 @@ class AgentController extends BaseController
             $this->db->update('form_submissions', ['status' => 'draft'], 'id = ?', [$submissionId]);
         }
 
-        // Update lead stage
         if ($lead['workflow_stage'] !== 'AGENT_DRAFT') {
             $this->leadModel->updateStage($leadId, 'AGENT_DRAFT');
         }
@@ -279,9 +309,6 @@ class AgentController extends BaseController
         $this->json(['success' => true, 'message' => 'Draft saved.', 'submission_id' => $submissionId]);
     }
 
-    /**
-     * Submit form to admin
-     */
     public function submitForm(): void
     {
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
@@ -301,7 +328,6 @@ class AgentController extends BaseController
             return;
         }
 
-        // Check for existing submission
         $existing = $this->db->fetchOne(
             "SELECT id FROM form_submissions WHERE lead_id = ? AND submitted_by = ? AND status IN ('draft', 'submitted')",
             [$leadId, $user['id']]
@@ -323,11 +349,9 @@ class AgentController extends BaseController
             ], 'id = ?', [$submissionId]);
         }
 
-        // Transition workflow
         $workflowModel = new \Models\Workflow();
         $workflowModel->transition($leadId, $lead['workflow_stage'], 'ADMIN_REVIEW_1', $user['id'], 'agent', null, 'form_submitted');
 
-        // Notify admin
         $admins = $this->db->fetchAll(
             "SELECT id FROM users WHERE role_id = (SELECT id FROM roles WHERE name = 'admin')"
         );
@@ -340,9 +364,6 @@ class AgentController extends BaseController
         $this->json(['success' => true, 'message' => 'Form submitted to Admin for review.']);
     }
 
-    /**
-     * AJAX endpoint for server-side lead data (for DataTables-style tables)
-     */
     public function leadsAjax(): void
     {
         $user = currentUser();
@@ -379,9 +400,6 @@ class AgentController extends BaseController
         ]);
     }
 
-    /**
-     * Notifications page
-     */
     public function notifications(): void
     {
         $user = currentUser();
@@ -405,10 +423,6 @@ class AgentController extends BaseController
         }
     }
 
-    /**
-     * AJAX: Update disposition, remark, actual_salary, etc.
-     * Each update type only touches its own column — never overwrites unrelated fields.
-     */
     public function updateDisposition(): void
     {
         try {
@@ -430,13 +444,10 @@ class AgentController extends BaseController
                 return;
             }
 
-            // Ensure required columns exist
             $this->ensureColumns();
-
-            // Determine which columns exist
             $existingCols = $this->getExistingColumns('leads');
 
-            // Case 1: Disposition update (sent from dropdown)
+            // Case 1: Disposition update
             if ($disposition !== '' || array_key_exists('disposition', $_POST)) {
                 $updateData = ['updated_at' => date('Y-m-d H:i:s')];
                 if (in_array('agent_disposition', $existingCols)) {
@@ -451,7 +462,7 @@ class AgentController extends BaseController
                 return;
             }
 
-            // Case 2: Remark update (sent from remark input blur)
+            // Case 2: Remark update
             if ($agentRemark !== '__NOT_SENT__') {
                 if (in_array('agent_remark', $existingCols)) {
                     $this->db->update('leads', [
@@ -464,7 +475,7 @@ class AgentController extends BaseController
                 }
             }
 
-            // Case 3: Generic field update (actual_salary, etc.)
+            // Case 3: Generic field update
             if ($field) {
                 $allowedFields = ['actual_salary', 'salary', 'existing_la', 'remark'];
                 if (in_array($field, $allowedFields) && in_array($field, $existingCols)) {
@@ -476,7 +487,7 @@ class AgentController extends BaseController
                     $this->json(['success' => true, 'message' => ucfirst(str_replace('_', ' ', $field)) . ' updated.']);
                     return;
                 }
-                // If column doesn't exist, auto-create it
+                // Auto-create column
                 try {
                     $this->db->query("ALTER TABLE `leads` ADD COLUMN `{$field}` VARCHAR(100) DEFAULT NULL");
                     $existingCols[] = $field;
@@ -498,9 +509,6 @@ class AgentController extends BaseController
         }
     }
 
-    /**
-     * Ensure critical columns exist in leads table
-     */
     private function ensureColumns(): void
     {
         $cols = [
@@ -510,34 +518,18 @@ class AgentController extends BaseController
             'actual_salary' => 'VARCHAR(50) DEFAULT NULL',
         ];
         $existingCols = $this->getExistingColumns('leads');
-        $addedAny = false;
         foreach ($cols as $col => $def) {
             if (!in_array($col, $existingCols)) {
                 try {
                     $this->db->query("ALTER TABLE `leads` ADD COLUMN `{$col}` {$def}");
                     $existingCols[] = $col;
-                    $addedAny = true;
                 } catch (\Throwable $e) {
                     // Column might already exist
                 }
             }
         }
-        // Reset the cache so subsequent getExistingColumns calls see new columns
-        if ($addedAny) {
-            self::resetColumnsCache('leads');
-        }
     }
 
-    private static function resetColumnsCache(string $table): void
-    {
-        // Use a class-level approach: clear the static cache
-        // We can't directly access static vars from another method in PHP easily,
-        // so we use a class property
-    }
-
-    /**
-     * Get existing column names for a table
-     */
     private function getExistingColumns(string $table): array
     {
         try {
@@ -551,9 +543,6 @@ class AgentController extends BaseController
         }
     }
 
-    /**
-     * Document upload handler
-     */
     public function uploadDocument(): void
     {
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
@@ -589,7 +578,6 @@ class AgentController extends BaseController
             return;
         }
 
-        // Validate MIME type
         $finfo = finfo_open(FILEINFO_MIME_TYPE);
         $mimeType = finfo_file($finfo, $file['tmp_name']);
         finfo_close($finfo);
@@ -605,7 +593,6 @@ class AgentController extends BaseController
             return;
         }
 
-        // Store file securely
         $uploadDir = ROOT_PATH . '/public/uploads/documents/' . $leadId . '/';
         if (!is_dir($uploadDir)) {
             mkdir($uploadDir, 0755, true);

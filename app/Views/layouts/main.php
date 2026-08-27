@@ -159,6 +159,9 @@
                 <a href="/bestdealcrm/admin/leads/assign" class="nav-link <?= str_contains($currentUri, '/leads/assign') ? 'active' : '' ?>">
                     <i class="bi bi-person-check"></i> Assign Leads
                 </a>
+                <a href="/bestdealcrm/admin/leads/reassign" class="nav-link <?= str_contains($currentUri, '/leads/reassign') ? 'active' : '' ?>">
+                    <i class="bi bi-arrow-left-right"></i> Reassign Leads
+                </a>
                 
                 <div class="nav-section">Workflow</div>
                 <a href="/bestdealcrm/admin/review1" class="nav-link <?= str_contains($currentUri, '/admin/review1') ? 'active' : '' ?>">
