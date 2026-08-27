@@ -77,10 +77,17 @@ class DynamicForm
         // Ensure is_hidden column exists
         $this->ensureHiddenColumn();
 
-        $form['sections'] = $this->db->fetchAll(
+        $form['sections'] =            $this->db->fetchAll(
             "SELECT * FROM form_sections WHERE form_id = ? ORDER BY display_order",
             [$formId]
         );
+        // Ensure column_layout exists
+        try {
+            $colCheck = $this->db->fetchOne("SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'form_sections' AND COLUMN_NAME = 'column_layout'");
+            if (!$colCheck) {
+                $this->db->query("ALTER TABLE `form_sections` ADD COLUMN `column_layout` INT DEFAULT 1");
+            }
+        } catch (\Throwable $e) {}
 
         foreach ($form['sections'] as &$section) {
             $hiddenFilter = $includeHidden ? '' : ' AND (f.is_hidden IS NULL OR f.is_hidden = 0)';

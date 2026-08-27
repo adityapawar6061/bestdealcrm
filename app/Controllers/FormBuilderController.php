@@ -329,6 +329,7 @@ class FormBuilderController extends BaseController
     private function ensureFieldColumns(): void
     {
         try {
+            // form_fields columns
             $cols = $this->db->fetchAll(
                 "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'form_fields'"
             );
@@ -339,8 +340,94 @@ class FormBuilderController extends BaseController
             if (!in_array('field_type', $colNames)) {
                 $this->db->query("ALTER TABLE `form_fields` ADD COLUMN `field_type` VARCHAR(50) DEFAULT 'field'");
             }
+            // form_sections columns
+            $secCols = $this->db->fetchAll(
+                "SELECT COLUMN_NAME FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'form_sections'"
+            );
+            $secColNames = array_column($secCols, 'COLUMN_NAME');
+            if (!in_array('column_layout', $secColNames)) {
+                $this->db->query("ALTER TABLE `form_sections` ADD COLUMN `column_layout` INT DEFAULT 1");
+            }
         } catch (\Throwable $e) {
             // Ignore
+        }
+    }
+
+    /**
+     * Save section order (drag-drop)
+     */
+    public function saveSectionOrder(): void
+    {
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            $this->json(['error' => 'Invalid request.'], 405);
+            return;
+        }
+
+        $sectionIds = $_POST['section_ids'] ?? [];
+        if (empty($sectionIds)) {
+            $this->json(['error' => 'No sections provided.'], 400);
+            return;
+        }
+
+        try {
+            foreach ($sectionIds as $index => $sectionId) {
+                $this->db->update('form_sections', [
+                    'display_order' => $index + 1,
+                ], 'id = ?', [(int)$sectionId]);
+            }
+            $this->json(['success' => true, 'message' => 'Section order saved.']);
+        } catch (\Throwable $e) {
+            $this->json(['error' => 'Failed: ' . $e->getMessage()], 500);
+        }
+    }
+
+    /**
+     * Save section column layout (1, 2, or 3 columns)
+     */
+    public function saveSectionLayout(): void
+    {
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            $this->json(['error' => 'Invalid request.'], 405);
+            return;
+        }
+
+        $sectionId = (int)($_POST['section_id'] ?? 0);
+        $layout = (int)($_POST['column_layout'] ?? 1);
+
+        if (!$sectionId || $layout < 1 || $layout > 3) {
+            $this->json(['error' => 'Invalid data.'], 400);
+            return;
+        }
+
+        $this->db->update('form_sections', ['column_layout' => $layout], 'id = ?', [$sectionId]);
+        $this->json(['success' => true, 'message' => 'Layout saved.']);
+    }
+
+    /**
+     * Save field order within a section (drag-drop)
+     */
+    public function saveFieldOrder(): void
+    {
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            $this->json(['error' => 'Invalid request.'], 405);
+            return;
+        }
+
+        $fieldIds = $_POST['field_ids'] ?? [];
+        if (empty($fieldIds)) {
+            $this->json(['error' => 'No fields provided.'], 400);
+            return;
+        }
+
+        try {
+            foreach ($fieldIds as $index => $fieldId) {
+                $this->db->update('form_fields', [
+                    'display_order' => $index + 1,
+                ], 'id = ?', [(int)$fieldId]);
+            }
+            $this->json(['success' => true, 'message' => 'Field order saved.']);
+        } catch (\Throwable $e) {
+            $this->json(['error' => 'Failed: ' . $e->getMessage()], 500);
         }
     }
 

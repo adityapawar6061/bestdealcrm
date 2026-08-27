@@ -46,6 +46,23 @@
     </form>
 </div>
 
+<!-- View Tabs -->
+<ul class="nav nav-tabs mb-4" id="builderTabs">
+    <li class="nav-item">
+        <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tabBuilder" type="button">
+            <i class="bi bi-pencil-square me-1"></i> Builder
+        </button>
+    </li>
+    <li class="nav-item">
+        <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tabPreview" type="button" onclick="loadPreview()">
+            <i class="bi bi-eye me-1"></i> Preview & Layout
+        </button>
+    </li>
+</ul>
+
+<div class="tab-content">
+<div class="tab-pane fade show active" id="tabBuilder">
+
 <!-- Sections -->
 <div id="sections">
     <?php foreach ($form['sections'] as $section): ?>
@@ -226,6 +243,25 @@
         </div>
     </div>
 </div>
+
+</div><!-- /tabBuilder -->
+
+<!-- ===== PREVIEW & LAYOUT TAB ===== -->
+<div class="tab-pane fade" id="tabPreview">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+        <h6 class="fw-bold mb-0"><i class="bi bi-eye me-1"></i> Form Preview — Drag sections to reorder, change column layout</h6>
+        <div>
+            <button class="btn btn-sm btn-outline-secondary" onclick="loadPreview()"><i class="bi bi-arrow-clockwise me-1"></i> Refresh</button>
+            <span class="badge bg-success ms-2" id="previewSavedBadge" style="display:none">✓ Saved</span>
+        </div>
+    </div>
+    <p class="text-muted small mb-3">Drag sections up/down using the ⋮⋮ handle. Click column buttons to change layout. Changes auto-save.</p>
+    <div id="previewContainer" class="bg-light border rounded p-3">
+        <p class="text-muted text-center py-4">Click the Preview tab to load...</p>
+    </div>
+</div>
+
+</div><!-- /tab-content -->
 
 <!-- ===== EDIT FIELD MODAL ===== -->
 <div class="modal fade" id="editFieldModal" tabindex="-1">
@@ -739,5 +775,187 @@ function escapeHtml(text) {
     var div = document.createElement('div');
     div.textContent = text;
     return div.innerHTML;
+}
+
+// ===== PREVIEW & LAYOUT =====
+var previewSections = [];
+
+function loadPreview() {
+    var container = document.getElementById('previewContainer');
+    container.innerHTML = '<p class="text-center text-muted py-3"><i class="bi bi-hourglass-split"></i> Loading preview...</p>';
+
+    // Build preview data from the DOM sections
+    previewSections = [];
+    document.querySelectorAll('#sections > .table-container').forEach(function(secEl) {
+        var secId = parseInt(secEl.id.replace('section-', ''));
+        var secName = secEl.querySelector('h6.fw-bold')?.textContent?.trim() || 'Section';
+        var fields = [];
+        secEl.querySelectorAll('tbody tr').forEach(function(row) {
+            var id = parseInt(row.id.replace('field-row-', ''));
+            if (!id) return;
+            var cells = row.querySelectorAll('td');
+            var fieldType = cells[2]?.textContent?.trim() || '';
+            var fieldName = cells[1]?.querySelector('code')?.textContent?.trim() || '';
+            var label = cells[2]?.textContent?.trim() || '';
+            var type = cells[3]?.querySelector('.badge')?.textContent?.trim() || '';
+            var required = cells[4]?.querySelector('.bi-check-circle-fill') ? true : false;
+            var optionsText = cells[5]?.textContent?.trim() || '';
+            fields.push({
+                id: id,
+                field_name: fieldName,
+                label: label,
+                type: type,
+                required: required,
+                optionsText: optionsText,
+            });
+        });
+        previewSections.push({
+            id: secId,
+            name: secName,
+            layout: 1,
+            fields: fields,
+        });
+    });
+    renderPreview();
+}
+
+function renderPreview() {
+    var container = document.getElementById('previewContainer');
+    var html = '';
+    previewSections.forEach(function(sec, idx) {
+        var layout = sec.layout || 1;
+        var colClass = layout === 3 ? 'col-md-4' : (layout === 2 ? 'col-md-6' : 'col-md-12');
+        html += '<div class="card mb-3 preview-section" data-sec-idx="' + idx + '" draggable="true" ondragstart="dragSection(event,' + idx + ')" ondragover="event.preventDefault()" ondrop="dropSection(event,' + idx + ')">';
+        html += '<div class="card-header bg-white d-flex justify-content-between align-items-center" style="cursor:move;border-left:4px solid #0d6efd">';
+        html += '<div><span class="me-2 text-muted" title="Drag to reorder">⋮⋮</span><strong class="small">' + escapeHtml(sec.name) + '</strong>';
+        html += ' <span class="badge bg-secondary ms-1">' + sec.fields.length + ' fields</span></div>';
+        html += '<div class="btn-group btn-group-sm">';
+        for (var c = 1; c <= 3; c++) {
+            html += '<button class="btn btn-outline-' + (layout === c ? 'primary' : 'secondary') + '" onclick="setSectionLayout(' + idx + ',' + c + ')" title="' + c + ' column' + (c > 1 ? 's' : '') + '">' + c + ' Col</button>';
+        }
+        html += '</div>';
+        html += '</div>';
+        html += '<div class="card-body">';
+        if (sec.fields.length === 0) {
+            html += '<p class="text-muted small text-center mb-0">No visible fields</p>';
+        } else {
+            html += '<div class="row g-3">';
+            sec.fields.forEach(function(f, fIdx) {
+                var fieldHtml = '';
+                if (!f.field_name && f.label && (f.label === 'heading' || f.label === '')) {
+                    // Heading
+                    fieldHtml = '<div class="col-12"><h6 class="text-primary fw-bold border-bottom pb-1 mt-2">' + escapeHtml(f.label) + '</h6></div>';
+                } else if (!f.type) {
+                    fieldHtml = '<div class="col-12"><h6 class="fw-bold mt-2" style="font-size:0.9rem;color:#555">' + escapeHtml(f.label) + '</h6></div>';
+                } else {
+                    var reqStar = f.required ? ' <span class="text-danger">*</span>' : '';
+                    fieldHtml = '<div class="' + colClass + '" draggable="true" ondragstart="dragField(event,' + idx + ',' + fIdx + ')" ondragover="event.preventDefault()" ondrop="dropField(event,' + idx + ',' + fIdx + ')" style="cursor:grab">';
+                    fieldHtml += '<label class="form-label small fw-semibold mb-1">' + escapeHtml(f.label) + reqStar + '</label>';
+                    if (f.type === 'text' || f.type === 'email' || f.type === 'mobile' || f.type === 'url') {
+                        fieldHtml += '<input type="text" class="form-control form-control-sm" placeholder="' + escapeHtml(f.label) + '" disabled>';
+                    } else if (f.type === 'number' || f.type === 'decimal') {
+                        fieldHtml += '<input type="number" class="form-control form-control-sm" placeholder="0" disabled>';
+                    } else if (f.type === 'date') {
+                        fieldHtml += '<input type="date" class="form-control form-control-sm" disabled>';
+                    } else if (f.type === 'textarea') {
+                        fieldHtml += '<textarea class="form-control form-control-sm" rows="2" placeholder="' + escapeHtml(f.label) + '" disabled></textarea>';
+                    } else if (f.type === 'dropdown') {
+                        fieldHtml += '<select class="form-select form-select-sm" disabled><option>Select...</option></select>';
+                    } else if (f.type === 'radio') {
+                        fieldHtml += '<div class="d-flex gap-3"><div class="form-check"><input class="form-check-input" type="radio" disabled><label class="form-check-label small">Option 1</label></div><div class="form-check"><input class="form-check-input" type="radio" disabled><label class="form-check-label small">Option 2</label></div></div>';
+                    } else if (f.type === 'checkbox') {
+                        fieldHtml += '<div class="form-check"><input class="form-check-input" type="checkbox" disabled><label class="form-check-label small">Check this</label></div>';
+                    } else if (f.type === 'file' || f.type === 'image') {
+                        fieldHtml += '<input type="file" class="form-control form-control-sm" disabled>';
+                    } else if (f.type === 'readonly') {
+                        fieldHtml += '<input type="text" class="form-control form-control-sm bg-light" value="(auto-filled)" readonly>';
+                    } else {
+                        fieldHtml += '<input type="text" class="form-control form-control-sm" placeholder="' + escapeHtml(f.label) + '" disabled>';
+                    }
+                    fieldHtml += '</div>';
+                }
+                html += fieldHtml;
+            });
+            html += '</div>';
+        }
+        html += '</div></div>';
+    });
+    container.innerHTML = html;
+}
+
+// Section drag-drop
+var dragSecIdx = null;
+function dragSection(e, idx) {
+    dragSecIdx = idx;
+    e.dataTransfer.effectAllowed = 'move';
+    e.target.closest('.preview-section').style.opacity = '0.4';
+}
+function dropSection(e, idx) {
+    e.preventDefault();
+    if (dragSecIdx === null || dragSecIdx === idx) return;
+    var item = previewSections.splice(dragSecIdx, 1)[0];
+    previewSections.splice(idx, 0, item);
+    dragSecIdx = null;
+    renderPreview();
+    saveSectionOrder();
+}
+function saveSectionOrder() {
+    var ids = previewSections.map(function(s) { return s.id; });
+    var formData = new FormData();
+    ids.forEach(function(id) { formData.append('section_ids[]', id); });
+    ajaxPost('/bestdealcrm/admin/form-builder/save-section-order', formData).then(function(r) {
+        if (r && r.success) {
+            var badge = document.getElementById('previewSavedBadge');
+            badge.style.display = 'inline';
+            setTimeout(function() { badge.style.display = 'none'; }, 2000);
+        }
+    });
+}
+
+// Field drag-drop within section
+var dragFieldData = null;
+function dragField(e, secIdx, fieldIdx) {
+    dragFieldData = { secIdx: secIdx, fieldIdx: fieldIdx };
+    e.dataTransfer.effectAllowed = 'move';
+}
+function dropField(e, secIdx, fieldIdx) {
+    e.preventDefault();
+    e.stopPropagation();
+    if (!dragFieldData || dragFieldData.secIdx !== secIdx) return;
+    var fields = previewSections[secIdx].fields;
+    var item = fields.splice(dragFieldData.fieldIdx, 1)[0];
+    fields.splice(fieldIdx, 0, item);
+    dragFieldData = null;
+    renderPreview();
+    saveFieldOrder(secIdx);
+}
+function saveFieldOrder(secIdx) {
+    var sec = previewSections[secIdx];
+    var ids = sec.fields.map(function(f) { return f.id; });
+    var formData = new FormData();
+    ids.forEach(function(id) { formData.append('field_ids[]', id); });
+    ajaxPost('/bestdealcrm/admin/form-builder/save-field-order', formData).then(function(r) {
+        if (r && r.success) {
+            var badge = document.getElementById('previewSavedBadge');
+            badge.style.display = 'inline';
+            setTimeout(function() { badge.style.display = 'none'; }, 2000);
+        }
+    });
+}
+
+// Column layout
+function setSectionLayout(secIdx, cols) {
+    previewSections[secIdx].layout = cols;
+    renderPreview();
+    var formData = new FormData();
+    formData.append('section_id', previewSections[secIdx].id);
+    formData.append('column_layout', cols);
+    ajaxPost('/bestdealcrm/admin/form-builder/save-section-layout', formData).then(function(r) {
+        if (r && r.success) {
+            var badge = document.getElementById('previewSavedBadge');
+            badge.style.display = 'inline';
+            setTimeout(function() { badge.style.display = 'none'; }, 2000);
+        }
+    });
 }
 </script>

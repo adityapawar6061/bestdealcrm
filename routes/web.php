@@ -141,6 +141,9 @@ $router->middleware(['AuthMiddleware'], function ($router) {
             // Form Builder - Field Options
             $router->post('/form-builder/field/{id}/options', 'FormBuilderController', 'getFieldOptions');
             $router->post('/form-builder/field/{id}/options/save', 'FormBuilderController', 'saveFieldOptions');
+            $router->post('/form-builder/save-section-order', 'FormBuilderController', 'saveSectionOrder');
+            $router->post('/form-builder/save-section-layout', 'FormBuilderController', 'saveSectionLayout');
+            $router->post('/form-builder/save-field-order', 'FormBuilderController', 'saveFieldOrder');
             $router->post('/form-builder/delete-section', 'FormBuilderController', 'deleteSection');
             $router->post('/form-builder/delete-with-password', 'FormBuilderController', 'deleteWithPassword');
             
