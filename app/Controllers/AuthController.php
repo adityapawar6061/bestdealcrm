@@ -9,7 +9,9 @@ class AuthController extends BaseController
     public function showLogin(): void
     {
         if (isAuthenticated()) {
+            unset($_SESSION['flash']);
             $this->redirectBasedOnRole();
+            return;
         }
         
         require VIEWS_PATH . '/auth/login.php';
@@ -78,9 +80,10 @@ class AuthController extends BaseController
                 return;
             }
 
-            // Successful login - clear attempts
+            // Successful login - clear attempts and flash
             unset($_SESSION['login_attempts']);
             unset($_SESSION['last_login_attempt']);
+            unset($_SESSION['flash']);
 
             // Regenerate session ID for security
             session_regenerate_id(true);

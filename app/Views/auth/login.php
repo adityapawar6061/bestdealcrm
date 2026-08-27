@@ -52,7 +52,9 @@
         .btn-login:hover { background: #2563eb; }
         .form-label { font-weight: 500; font-size: 0.875rem; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(-5px); } to { opacity: 1; transform: translateY(0); } }
-        .alert { animation: fadeIn 0.3s ease; }
+        @keyframes shake { 0%,100%{transform:translateX(0)} 25%{transform:translateX(-5px)} 75%{transform:translateX(5px)} }
+        .alert-danger { animation: fadeIn 0.4s ease, shake 0.4s ease 0.4s; }
+        .alert { animation: fadeIn 0.3s ease; border-radius: 8px; }
     </style>
 </head>
 <body>
@@ -63,21 +65,38 @@
         </div>
         <div class="login-body">
             <?php 
-            // Flash messages — read directly from session (controller may have consumed them)
+            // Flash messages — persist until user submits form successfully
             $loginError = $_SESSION['flash']['error'] ?? null;
             $loginSuccess = $_SESSION['flash']['success'] ?? null;
-            unset($_SESSION['flash']['error'], $_SESSION['flash']['success']);
+            // Don't unset here — only clear on successful login
             ?>
             
             <?php if (!empty($loginError)): ?>
-                <div class="alert alert-danger py-2 mb-3" style="animation: fadeIn 0.3s ease">
-                    <small><i class="bi bi-exclamation-circle me-1"></i><?= htmlspecialchars($loginError) ?></small>
+                <div class="alert alert-danger py-3 mb-3" style="border-left:4px solid #dc3545;background:#fff5f5;">
+                    <div class="d-flex align-items-start">
+                        <i class="bi bi-exclamation-triangle-fill text-danger me-2 mt-1" style="font-size:1.2rem"></i>
+                        <div>
+                            <strong class="text-danger">Login Failed</strong><br>
+                            <small class="text-dark"><?= htmlspecialchars($loginError) ?></small>
+                        </div>
+                    </div>
                 </div>
+                <script>/* Keep error visible until user types in form */
+                document.querySelector('form').addEventListener('submit', function() {
+                    /* Clear flash on successful submission attempt */
+                    sessionStorage.removeItem('loginFlashShown');
+                });
+                </script>
             <?php endif; ?>
             
             <?php if (!empty($loginSuccess)): ?>
-                <div class="alert alert-success py-2 mb-3" style="animation: fadeIn 0.3s ease">
-                    <small><i class="bi bi-check-circle me-1"></i><?= htmlspecialchars($loginSuccess) ?></small>
+                <div class="alert alert-success py-3 mb-3" style="border-left:4px solid #198754;background:#f0fdf4;">
+                    <div class="d-flex align-items-start">
+                        <i class="bi bi-check-circle-fill text-success me-2 mt-1" style="font-size:1.2rem"></i>
+                        <div>
+                            <small class="text-dark"><?= htmlspecialchars($loginSuccess) ?></small>
+                        </div>
+                    </div>
                 </div>
             <?php endif; ?>
             

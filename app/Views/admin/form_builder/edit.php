@@ -66,7 +66,7 @@
 <!-- Sections -->
 <div id="sections">
     <?php foreach ($form['sections'] as $section): ?>
-    <div class="table-container mb-4" id="section-<?= $section['id'] ?>">
+    <div class="table-container mb-4" id="section-<?= $section['id'] ?>" data-column-layout="<?= $section['column_layout'] ?? 1 ?>">
         <div class="d-flex justify-content-between align-items-center mb-3">
             <h6 class="fw-bold text-primary mb-0">
                 <i class="bi bi-card-list me-1"></i> <?= htmlspecialchars($section['name']) ?>
@@ -252,10 +252,11 @@
         <h6 class="fw-bold mb-0"><i class="bi bi-eye me-1"></i> Form Preview — Drag sections to reorder, change column layout</h6>
         <div>
             <button class="btn btn-sm btn-outline-secondary" onclick="loadPreview()"><i class="bi bi-arrow-clockwise me-1"></i> Refresh</button>
+            <button class="btn btn-sm btn-primary ms-2" onclick="saveAllPreview()" id="saveAllBtn"><i class="bi bi-check-lg me-1"></i> Save All</button>
             <span class="badge bg-success ms-2" id="previewSavedBadge" style="display:none">✓ Saved</span>
         </div>
     </div>
-    <p class="text-muted small mb-3">Drag sections up/down using the ⋮⋮ handle. Click column buttons to change layout. Changes auto-save.</p>
+    <p class="text-muted small mb-3">Drag sections up/down using the ⋮⋮ handle. Drag fields within sections. Click column buttons to change layout. Click <strong>Save All</strong> to save changes.</p>
     <div id="previewContainer" class="bg-light border rounded p-3">
         <p class="text-muted text-center py-4">Click the Preview tab to load...</p>
     </div>
@@ -809,10 +810,12 @@ function loadPreview() {
                 optionsText: optionsText,
             });
         });
+        // Try to read column_layout from section data attribute
+        var layout = parseInt(secEl.getAttribute('data-column-layout')) || 1;
         previewSections.push({
             id: secId,
             name: secName,
-            layout: 1,
+            layout: layout,
             fields: fields,
         });
     });
@@ -897,18 +900,52 @@ function dropSection(e, idx) {
     previewSections.splice(idx, 0, item);
     dragSecIdx = null;
     renderPreview();
-    saveSectionOrder();
+    showUnsavedBadge();
 }
 function saveSectionOrder() {
     var ids = previewSections.map(function(s) { return s.id; });
     var formData = new FormData();
     ids.forEach(function(id) { formData.append('section_ids[]', id); });
-    ajaxPost('/bestdealcrm/admin/form-builder/save-section-order', formData).then(function(r) {
-        if (r && r.success) {
-            var badge = document.getElementById('previewSavedBadge');
-            badge.style.display = 'inline';
-            setTimeout(function() { badge.style.display = 'none'; }, 2000);
-        }
+    return ajaxPost('/bestdealcrm/admin/form-builder/save-section-order', formData);
+}
+
+// Save all: section order + all layouts
+function saveAllPreview() {
+    var btn = document.getElementById('saveAllBtn');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="bi bi-hourglass-split me-1"></i> Saving...';
+
+    // Save section order first
+    saveSectionOrder().then(function() {
+        // Then save all layouts
+        var promises = previewSections.map(function(sec) {
+            var fd = new FormData();
+            fd.append('section_id', sec.id);
+            fd.append('column_layout', sec.layout || 1);
+            return ajaxPost('/bestdealcrm/admin/form-builder/save-section-layout', fd);
+        });
+        return Promise.all(promises);
+    }).then(function() {
+        // Then save all field orders
+        var fieldPromises = previewSections.map(function(sec) {
+            var ids = sec.fields.map(function(f) { return f.id; });
+            if (ids.length === 0) return Promise.resolve();
+            var fd = new FormData();
+            ids.forEach(function(id) { fd.append('field_ids[]', id); });
+            return ajaxPost('/bestdealcrm/admin/form-builder/save-field-order', fd);
+        });
+        return Promise.all(fieldPromises);
+    }).then(function() {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-check-lg me-1"></i> Save All';
+        var badge = document.getElementById('previewSavedBadge');
+        badge.style.display = 'inline';
+        setTimeout(function() { badge.style.display = 'none'; }, 3000);
+        showToast('All changes saved!', 'success');
+    }).catch(function(err) {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-check-lg me-1"></i> Save All';
+        showToast('Save failed: ' + err.message, 'danger');
     });
 }
 
@@ -927,7 +964,7 @@ function dropField(e, secIdx, fieldIdx) {
     fields.splice(fieldIdx, 0, item);
     dragFieldData = null;
     renderPreview();
-    saveFieldOrder(secIdx);
+    showUnsavedBadge();
 }
 function saveFieldOrder(secIdx) {
     var sec = previewSections[secIdx];
@@ -947,15 +984,13 @@ function saveFieldOrder(secIdx) {
 function setSectionLayout(secIdx, cols) {
     previewSections[secIdx].layout = cols;
     renderPreview();
-    var formData = new FormData();
-    formData.append('section_id', previewSections[secIdx].id);
-    formData.append('column_layout', cols);
-    ajaxPost('/bestdealcrm/admin/form-builder/save-section-layout', formData).then(function(r) {
-        if (r && r.success) {
-            var badge = document.getElementById('previewSavedBadge');
-            badge.style.display = 'inline';
-            setTimeout(function() { badge.style.display = 'none'; }, 2000);
-        }
-    });
+    showUnsavedBadge();
+}
+
+function showUnsavedBadge() {
+    var badge = document.getElementById('previewSavedBadge');
+    badge.textContent = 'Unsaved changes';
+    badge.className = 'badge bg-warning text-dark ms-2';
+    badge.style.display = 'inline';
 }
 </script>
