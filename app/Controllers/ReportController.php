@@ -3,8 +3,8 @@ namespace Controllers;
 
 class ReportController extends BaseController
 {
-    // All available columns for lead reports
-    private array $availableColumns = [
+    // Static lead table columns
+    private array $leadColumns = [
         'id'                => ['label' => 'Lead ID', 'table' => 'leads'],
         'customer_name'     => ['label' => 'Customer Name', 'table' => 'leads'],
         'mobile_number'     => ['label' => 'Mobile Number', 'table' => 'leads'],
@@ -27,8 +27,7 @@ class ReportController extends BaseController
         'updated_at'        => ['label' => 'Updated Date', 'table' => 'leads'],
     ];
 
-    // Additional dynamic columns that may exist
-    private array $dynamicColumns = [
+    private array $dynamicLeadColumns = [
         'disposition'       => ['label' => 'Disposition', 'table' => 'leads'],
         'agent_disposition' => ['label' => 'Agent Disposition', 'table' => 'leads'],
         'agent_remark'      => ['label' => 'Agent Remarks', 'table' => 'leads'],
@@ -46,11 +45,54 @@ class ReportController extends BaseController
             `id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
             `name` VARCHAR(255) NOT NULL,
             `description` TEXT,
-            `columns_config` TEXT NOT NULL COMMENT 'JSON array of column configs',
+            `columns_config` TEXT NOT NULL,
             `created_by` INT UNSIGNED,
             `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
             `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
         ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+    }
+
+    /**
+     * Get all form builder fields grouped by form → section
+     */
+    private function getFormBuilderColumns(): array
+    {
+        static $cache = null;
+        if ($cache !== null) return $cache;
+
+        $forms = $this->db->fetchAll("SELECT id, name, code FROM forms ORDER BY id");
+        $result = [];
+
+        foreach ($forms as $form) {
+            $sections = $this->db->fetchAll(
+                "SELECT id, name FROM form_sections WHERE form_id = ? ORDER BY display_order",
+                [$form['id']]
+            );
+            $formSections = [];
+            foreach ($sections as $section) {
+                $fields = $this->db->fetchAll(
+                    "SELECT id, field_name, label, type FROM form_fields WHERE section_id = ? AND (is_hidden IS NULL OR is_hidden = 0) AND type NOT IN ('heading', 'subheading') ORDER BY display_order",
+                    [$section['id']]
+                );
+                if (!empty($fields)) {
+                    $formSections[] = [
+                        'name'   => $section['name'],
+                        'fields' => $fields,
+                    ];
+                }
+            }
+            if (!empty($formSections)) {
+                $result[] = [
+                    'id'       => $form['id'],
+                    'name'     => $form['name'],
+                    'code'     => $form['code'],
+                    'sections' => $formSections,
+                ];
+            }
+        }
+
+        $cache = $result;
+        return $result;
     }
 
     /**
@@ -72,26 +114,24 @@ class ReportController extends BaseController
     }
 
     /**
-     * Create new report template form
+     * Create new report template
      */
     public function create(): void
     {
-        // Check which dynamic columns actually exist
         $existingDynamic = [];
-        foreach ($this->dynamicColumns as $key => $col) {
+        foreach ($this->dynamicLeadColumns as $key => $col) {
             $exists = $this->db->fetchOne(
                 "SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'leads' AND COLUMN_NAME = ?",
                 [$key]
             );
-            if ($exists) {
-                $existingDynamic[$key] = $col;
-            }
+            if ($exists) $existingDynamic[$key] = $col;
         }
 
         $this->view('admin/reports/create', [
             'title'            => 'Create Report Template',
-            'availableColumns' => $this->availableColumns,
+            'leadColumns'      => $this->leadColumns,
             'dynamicColumns'   => $existingDynamic,
+            'formColumns'      => $this->getFormBuilderColumns(),
         ]);
     }
 
@@ -113,17 +153,15 @@ class ReportController extends BaseController
             $this->json(['error' => 'Template name is required.'], 400);
             return;
         }
-
         if (empty($columns)) {
             $this->json(['error' => 'Select at least one column.'], 400);
             return;
         }
 
-        // Build columns config with labels
+        $allLabels = $this->getAllColumnLabels();
         $columnsConfig = [];
-        $allCols = array_merge($this->availableColumns, $this->dynamicColumns);
         foreach ($columns as $colName) {
-            $label = $allCols[$colName]['label'] ?? $colName;
+            $label = $allLabels[$colName] ?? $colName;
             $columnsConfig[] = ['field' => $colName, 'label' => $label];
         }
 
@@ -137,7 +175,6 @@ class ReportController extends BaseController
         ]);
 
         logActivity($user['id'], 'report_template_created', 'report_template', (int)$templateId);
-
         $this->json(['success' => true, 'message' => 'Template created.', 'id' => $templateId]);
     }
 
@@ -151,25 +188,22 @@ class ReportController extends BaseController
             $this->redirect('/admin/reports', 'error', 'Template not found.');
             return;
         }
-
         $template['columns_config'] = json_decode($template['columns_config'], true) ?? [];
 
-        // Check dynamic columns
         $existingDynamic = [];
-        foreach ($this->dynamicColumns as $key => $col) {
+        foreach ($this->dynamicLeadColumns as $key => $col) {
             $exists = $this->db->fetchOne(
                 "SELECT 1 FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'leads' AND COLUMN_NAME = ?",
                 [$key]
             );
-            if ($exists) {
-                $existingDynamic[$key] = $col;
-            }
+            if ($exists) $existingDynamic[$key] = $col;
         }
 
         $this->view('admin/reports/create', [
             'title'            => 'Edit Report Template',
-            'availableColumns' => $this->availableColumns,
+            'leadColumns'      => $this->leadColumns,
             'dynamicColumns'   => $existingDynamic,
+            'formColumns'      => $this->getFormBuilderColumns(),
             'template'         => $template,
             'editMode'         => true,
         ]);
@@ -195,10 +229,10 @@ class ReportController extends BaseController
             return;
         }
 
-        $allCols = array_merge($this->availableColumns, $this->dynamicColumns);
+        $allLabels = $this->getAllColumnLabels();
         $columnsConfig = [];
         foreach ($columns as $colName) {
-            $label = $allCols[$colName]['label'] ?? $colName;
+            $label = $allLabels[$colName] ?? $colName;
             $columnsConfig[] = ['field' => $colName, 'label' => $label];
         }
 
@@ -234,17 +268,14 @@ class ReportController extends BaseController
             $this->redirect('/admin/reports', 'error', 'Template not found.');
             return;
         }
-
         $template['columns_config'] = json_decode($template['columns_config'], true) ?? [];
 
-        // Get filter options
         $agents = $this->db->fetchAll(
             "SELECT u.id, u.name FROM users u JOIN roles r ON u.role_id = r.id WHERE r.name IN ('agent', 'login_agent', 'team_leader', 'underwriting', 'dispatch') AND u.status = 'active' ORDER BY u.name"
         );
         $banks = $this->db->fetchAll("SELECT DISTINCT bank_name FROM leads WHERE bank_name IS NOT NULL AND bank_name != '' ORDER BY bank_name");
         $stages = $this->db->fetchAll("SELECT DISTINCT workflow_stage FROM leads WHERE workflow_stage IS NOT NULL ORDER BY workflow_stage");
 
-        // If AJAX preview, return data
         if (isset($_GET['preview'])) {
             $this->previewData($template);
             return;
@@ -260,118 +291,41 @@ class ReportController extends BaseController
     }
 
     /**
-     * Export data as CSV with BOM (opens in Excel)
+     * Export data as CSV
      */
     public function export(int $id): void
     {
         $template = $this->db->fetchOne("SELECT * FROM report_templates WHERE id = ?", [$id]);
-        if (!$template) {
-            $this->json(['error' => 'Template not found.'], 404);
-            return;
-        }
+        if (!$template) { $this->json(['error' => 'Not found.'], 404); return; }
 
         $columnsConfig = json_decode($template['columns_config'], true) ?? [];
-        if (empty($columnsConfig)) {
-            $this->json(['error' => 'No columns configured.'], 400);
-            return;
-        }
+        if (empty($columnsConfig)) { $this->json(['error' => 'No columns.'], 400); return; }
 
-        // Build query with filters
-        $where = '1=1';
-        $params = [];
-
-        $dateFrom = $_GET['date_from'] ?? '';
-        $dateTo = $_GET['date_to'] ?? '';
-        $dateField = $_GET['date_field'] ?? 'created_at';
-        $agentFilter = $_GET['agent_id'] ?? '';
-        $bankFilter = $_GET['bank_name'] ?? '';
-        $stageFilter = $_GET['workflow_stage'] ?? '';
-        $search = $_GET['search'] ?? '';
-
-        // Validate date field
-        $allowedDateFields = ['created_at', 'updated_at', 'response_date'];
-        if (!in_array($dateField, $allowedDateFields)) {
-            $dateField = 'created_at';
-        }
-
-        if ($dateFrom) {
-            $where .= " AND l.{$dateField} >= ?";
-            $params[] = $dateFrom . ' 00:00:00';
-        }
-        if ($dateTo) {
-            $where .= " AND l.{$dateField} <= ?";
-            $params[] = $dateTo . ' 23:59:59';
-        }
-        if ($agentFilter) {
-            $where .= ' AND l.assigned_to = ?';
-            $params[] = (int)$agentFilter;
-        }
-        if ($bankFilter) {
-            $where .= ' AND l.bank_name = ?';
-            $params[] = $bankFilter;
-        }
-        if ($stageFilter) {
-            $where .= ' AND l.workflow_stage = ?';
-            $params[] = $stageFilter;
-        }
-        if ($search) {
-            $s = '%' . $search . '%';
-            $where .= ' AND (l.customer_name LIKE ? OR l.mobile_number LIKE ? OR l.id = ?)';
-            $params[] = $s;
-            $params[] = $s;
-            $params[] = $search;
-        }
-
-        // Build column list for SQL
-        $selectedFields = array_column($columnsConfig, 'field');
-        $sqlFields = [];
-        foreach ($selectedFields as $field) {
-            if ($field === 'assigned_to_name') {
-                $sqlFields[] = 'u.name as assigned_to_name';
-            } else {
-                $sqlFields[] = "l.{$field}";
-            }
-        }
-
-        $sql = "SELECT " . implode(', ', $sqlFields) . "
-                FROM leads l 
-                LEFT JOIN users u ON l.assigned_to = u.id 
-                WHERE {$where} 
-                ORDER BY l.created_at DESC";
-
-        $rows = $this->db->fetchAll($sql, $params);
+        list($where, $params) = $this->buildFilterWhere();
+        $data = $this->queryReportData($columnsConfig, $where, $params);
 
         logActivity(currentUser()['id'], 'report_exported', 'report_template', $id, null,
-            json_encode(['rows' => count($rows), 'columns' => count($selectedFields)]));
+            json_encode(['rows' => count($data['rows']), 'columns' => count($columnsConfig)]));
 
-        // Generate CSV with UTF-8 BOM (opens correctly in Excel)
         $filename = $template['name'] . '_' . date('Y-m-d_His') . '.csv';
-
-        // Clean output buffer
         if (ob_get_level()) ob_end_clean();
 
         header('Content-Type: text/csv; charset=utf-8');
         header('Content-Disposition: attachment; filename="' . $filename . '"');
         header('Cache-Control: no-cache, no-store, must-revalidate');
-        header('Pragma: no-cache');
-        header('Expires: 0');
 
         $fp = fopen('php://output', 'w');
+        fprintf($fp, chr(0xEF).chr(0xBB).chr(0xBF)); // UTF-8 BOM
 
-        // UTF-8 BOM for Excel
-        fprintf($fp, chr(0xEF).chr(0xBB).chr(0xBF));
+        // Header
+        fputcsv($fp, array_column($columnsConfig, 'label'));
 
-        // Header row
-        $headerRow = array_column($columnsConfig, 'label');
-        fputcsv($fp, $headerRow);
-
-        // Data rows
-        foreach ($rows as $row) {
+        // Data
+        foreach ($data['rows'] as $row) {
             $dataRow = [];
-            foreach ($selectedFields as $field) {
-                $val = $row[$field] ?? '';
-                // Format salary with ₹
-                if (in_array($field, ['salary', 'actual_salary', 'existing_la']) && is_numeric($val) && $val > 0) {
+            foreach ($columnsConfig as $col) {
+                $val = $row[$col['field']] ?? '';
+                if (in_array($col['field'], ['salary', 'actual_salary', 'existing_la']) && is_numeric($val) && $val > 0) {
                     $dataRow[] = '₹' . number_format($val);
                 } else {
                     $dataRow[] = $val;
@@ -390,8 +344,25 @@ class ReportController extends BaseController
     private function previewData(array $template): void
     {
         $columnsConfig = $template['columns_config'] ?? [];
-        $selectedFields = array_column($columnsConfig, 'field');
+        list($where, $params) = $this->buildFilterWhere();
 
+        $countData = $this->queryReportData($columnsConfig, $where, $params, true);
+        $data = $this->queryReportData($columnsConfig, $where, $params, false, 100);
+
+        $this->json([
+            'success' => true,
+            'columns' => $columnsConfig,
+            'rows'    => $data['rows'],
+            'total'   => $countData['total'],
+            'showing' => count($data['rows']),
+        ]);
+    }
+
+    /**
+     * Build WHERE clause from filter params
+     */
+    private function buildFilterWhere(): array
+    {
         $where = '1=1';
         $params = [];
 
@@ -413,32 +384,173 @@ class ReportController extends BaseController
         if ($stageFilter) { $where .= ' AND l.workflow_stage = ?'; $params[] = $stageFilter; }
         if ($search) { $s = '%' . $search . '%'; $where .= ' AND (l.customer_name LIKE ? OR l.mobile_number LIKE ? OR l.id = ?)'; $params[] = $s; $params[] = $s; $params[] = $search; }
 
+        return [$where, $params];
+    }
+
+    /**
+     * Query report data — static columns from leads + dynamic columns from form submissions
+     */
+    private function queryReportData(array $columnsConfig, string $where, array $params, bool $countOnly = false, int $limit = 100): array
+    {
+        // Separate static lead columns from form builder columns
+        $staticFields = [];
+        $formFields = []; // ['form_id' => [field_name => label]]
+
+        $allKnown = array_merge(
+            array_keys($this->leadColumns),
+            array_keys($this->dynamicLeadColumns)
+        );
+
+        foreach ($columnsConfig as $col) {
+            $field = $col['field'];
+            if (in_array($field, $allKnown)) {
+                $staticFields[] = $col;
+            } else {
+                // This is a form builder field — extract form_id and field_name
+                // Format: form_{formId}_{fieldName}
+                if (preg_match('/^form_(\d+)_(.+)$/', $field, $m)) {
+                    $formId = (int)$m[1];
+                    $fieldName = $m[2];
+                    $formFields[$formId][$fieldName] = $col['label'];
+                }
+            }
+        }
+
+        // COUNT query
+        if ($countOnly) {
+            $total = $this->db->count('leads l', $where, $params);
+            return ['total' => $total, 'rows' => []];
+        }
+
+        // Build SQL for static columns
         $sqlFields = [];
-        foreach ($selectedFields as $field) {
+        foreach ($staticFields as $col) {
+            $field = $col['field'];
             if ($field === 'assigned_to_name') {
                 $sqlFields[] = 'u.name as assigned_to_name';
             } else {
                 $sqlFields[] = "l.{$field}";
             }
         }
-
-        $total = $this->db->count('leads l', $where, $params);
+        $sqlFields[] = 'l.id as _lead_id'; // Always include lead_id for joining
 
         $sql = "SELECT " . implode(', ', $sqlFields) . "
                 FROM leads l 
                 LEFT JOIN users u ON l.assigned_to = u.id 
                 WHERE {$where} 
                 ORDER BY l.created_at DESC 
-                LIMIT 100";
+                LIMIT {$limit}";
 
         $rows = $this->db->fetchAll($sql, $params);
 
-        $this->json([
-            'success'  => true,
-            'columns'  => $columnsConfig,
-            'rows'     => $rows,
-            'total'    => $total,
-            'showing'  => count($rows),
-        ]);
+        // If no form fields selected, return early
+        if (empty($formFields)) {
+            return ['total' => count($rows), 'rows' => $rows];
+        }
+
+        // Get all lead IDs
+        $leadIds = array_column($rows, '_lead_id');
+        if (empty($leadIds)) return ['total' => 0, 'rows' => []];
+
+        // Fetch ALL form submission values for these leads in ONE query
+        $placeholders = implode(',', array_fill(0, count($leadIds), '?'));
+        $allFieldIds = [];
+        foreach ($formFields as $formId => $fields) {
+            foreach (array_keys($fields) as $fn) {
+                // We need to look up field IDs — do it in bulk
+            }
+        }
+
+        // Get all field IDs for the selected form fields
+        $allFieldNames = [];
+        foreach ($formFields as $formId => $fields) {
+            foreach (array_keys($fields) as $fn) {
+                $allFieldNames[] = ['form_id' => $formId, 'field_name' => $fn];
+            }
+        }
+
+        // Fetch field IDs in bulk
+        $fieldIdMap = []; // [formId_fieldName => fieldId]
+        foreach ($formFields as $formId => $fields) {
+            $fieldNames = array_keys($fields);
+            $fnPlaceholders = implode(',', array_fill(0, count($fieldNames), '?'));
+            $fieldRows = $this->db->fetchAll(
+                "SELECT id, field_name FROM form_fields ff 
+                 JOIN form_sections fs ON ff.section_id = fs.id 
+                 WHERE fs.form_id = ? AND ff.field_name IN ({$fnPlaceholders})",
+                array_merge([$formId], $fieldNames)
+            );
+            foreach ($fieldRows as $fr) {
+                $fieldIdMap["{$formId}_{$fr['field_name']}"] = $fr['id'];
+            }
+        }
+
+        if (empty($fieldIdMap)) return ['total' => count($rows), 'rows' => $rows];
+
+        // Fetch submission values in ONE query
+        $fieldIds = array_values($fieldIdMap);
+        $fiPlaceholders = implode(',', array_fill(0, count($fieldIds), '?'));
+        $submissionValues = $this->db->fetchAll(
+            "SELECT fsv.value, fsv.field_id, fs.lead_id
+             FROM form_submission_values fsv
+             JOIN form_submissions fs ON fsv.submission_id = fs.id
+             WHERE fs.lead_id IN ({$placeholders}) AND fsv.field_id IN ({$fiPlaceholders})",
+            array_merge($leadIds, $fieldIds)
+        );
+
+        // Build a lookup: leadId_fieldName => value
+        $valueLookup = [];
+        // Reverse map: fieldId => fieldKey (formId_fieldName)
+        $reverseFieldMap = [];
+        foreach ($fieldIdMap as $key => $fid) {
+            $reverseFieldMap[$fid] = $key;
+        }
+
+        foreach ($submissionValues as $sv) {
+            $fieldKey = $reverseFieldMap[$sv['field_id']] ?? null;
+            if ($fieldKey) {
+                // Extract field name from "formId_fieldName"
+                $parts = explode('_', $fieldKey, 2);
+                $fieldName = $parts[1] ?? '';
+                $lookupKey = "{$sv['lead_id']}_{$fieldName}";
+                // Keep latest value
+                $valueLookup[$lookupKey] = $sv['value'];
+            }
+        }
+
+        // Merge form field values into rows
+        foreach ($rows as &$row) {
+            $leadId = $row['_lead_id'];
+            foreach ($formFields as $formId => $fields) {
+                foreach (array_keys($fields) as $fn) {
+                    $key = "{$leadId}_{$fn}";
+                    $row["form_{$formId}_{$fn}"] = $valueLookup[$key] ?? '';
+                }
+            }
+        }
+        unset($row);
+
+        return ['total' => count($rows), 'rows' => $rows];
+    }
+
+    /**
+     * Get all column labels (static + dynamic + form builder)
+     */
+    private function getAllColumnLabels(): array
+    {
+        $labels = [];
+        foreach ($this->leadColumns as $k => $v) $labels[$k] = $v['label'];
+        foreach ($this->dynamicLeadColumns as $k => $v) $labels[$k] = $v['label'];
+
+        $forms = $this->getFormBuilderColumns();
+        foreach ($forms as $form) {
+            foreach ($form['sections'] as $section) {
+                foreach ($section['fields'] as $field) {
+                    $labels["form_{$form['id']}_{$field['field_name']}"] = "{$field['label']} ({$form['name']})";
+                }
+            }
+        }
+
+        return $labels;
     }
 }
