@@ -58,7 +58,7 @@ class Lead
         return $result;
     }
 
-    public function assign(int $leadId, int $assignedTo, ?int $assignedBy = null, ?string $remark = null): string
+    public function assign(int $leadId, int $assignedTo, ?int $assignedBy = null, ?string $remark = null, bool $preserveStage = false): string
     {
         $assignedBy = $assignedBy ?? (currentUser()['id'] ?? null);
         
@@ -73,12 +73,15 @@ class Lead
         ]);
 
         // Update lead
-        $this->db->update('leads', [
-            'assigned_to'    => $assignedTo,
-            'assigned_by'    => $assignedBy,
-            'workflow_stage' => 'LEAD_ASSIGNED',
-            'updated_at'     => date('Y-m-d H:i:s'),
-        ], 'id = ?', [$leadId]);
+        $updateData = [
+            'assigned_to' => $assignedTo,
+            'assigned_by' => $assignedBy,
+            'updated_at'  => date('Y-m-d H:i:s'),
+        ];
+        if (!$preserveStage) {
+            $updateData['workflow_stage'] = 'LEAD_ASSIGNED';
+        }
+        $this->db->update('leads', $updateData, 'id = ?', [$leadId]);
 
         // Log activity
         logActivity($assignedBy, 'lead_assigned', 'lead', $leadId, null, json_encode([

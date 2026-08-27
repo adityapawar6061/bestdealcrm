@@ -6,10 +6,13 @@
 <div class="table-container">
     <form class="row g-2 align-items-end mb-3" method="GET">
         <div class="col-md-4">
-            <input type="text" name="search" class="form-control form-control-sm" placeholder="Search by name, mobile, lead ID..." value="<?= htmlspecialchars($filters['search'] ?? '') ?>">
+            <input type="text" name="search" class="form-control form-control-sm" placeholder="Search by name, mobile, lead ID..." value="<?= htmlspecialchars($search ?? '') ?>">
         </div>
         <div class="col-md-2">
             <button type="submit" class="btn btn-sm btn-outline-primary w-100">Search</button>
+        </div>
+        <div class="col-md-2">
+            <small class="text-muted"><?= number_format($total ?? 0) ?> leads found</small>
         </div>
     </form>
 
@@ -28,10 +31,10 @@
                 </tr>
             </thead>
             <tbody>
-                <?php if (empty($leads['data'])): ?>
+                <?php if (empty($leads)): ?>
                     <tr><td colspan="8" class="text-center py-4 text-muted">No cases pending dispatch decision.</td></tr>
                 <?php else: ?>
-                    <?php foreach ($leads['data'] as $lead): ?>
+                    <?php foreach ($leads as $lead): ?>
                     <tr>
                         <td><?= $lead['id'] ?></td>
                         <td><strong><?= htmlspecialchars($lead['customer_name'] ?? '') ?></strong></td>
@@ -48,13 +51,13 @@
         </table>
     </div>
 
-    <?php if (($leads['total_pages'] ?? 1) > 1): ?>
+    <?php if (($totalPages ?? 1) > 1): ?>
     <div class="d-flex justify-content-between align-items-center mt-3">
-        <small class="text-muted">Showing <?= $leads['from'] ?? 0 ?>-<?= $leads['to'] ?? 0 ?> of <?= number_format($leads['total']) ?></small>
+        <small class="text-muted">Page <?= $page ?> of <?= $totalPages ?></small>
         <nav><ul class="pagination pagination-sm mb-0">
-            <?php for ($i = 1; $i <= ($leads['total_pages'] ?? 1); $i++): ?>
-                <li class="page-item <?= $i == ($leads['current_page'] ?? 1) ? 'active' : '' ?>">
-                    <a class="page-link" href="?page=<?= $i ?>&search=<?= urlencode($filters['search'] ?? '') ?>"><?= $i ?></a>
+            <?php for ($i = max(1, $page - 2); $i <= min($totalPages, $page + 2); $i++): ?>
+                <li class="page-item <?= $i == $page ? 'active' : '' ?>">
+                    <a class="page-link" href="?page=<?= $i ?>&search=<?= urlencode($search ?? '') ?>"><?= $i ?></a>
                 </li>
             <?php endfor; ?>
         </ul></nav>

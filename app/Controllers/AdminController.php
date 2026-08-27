@@ -1083,19 +1083,44 @@ class AdminController extends BaseController
 
     public function review3(): void
     {
-        $user = currentUser();
-        $filters = [
-            'search' => $_GET['search'] ?? '',
-        ];
-        $leads = $this->leadModel->getAll($filters, (int)($_GET['page'] ?? 1), 25);
-        // Filter to POST_LOGIN stage
-        $leads['data'] = array_filter($leads['data'], function($l) {
-            return $l['workflow_stage'] === 'POST_LOGIN' || $l['workflow_stage'] === 'ADMIN_REVIEW_3';
-        });
+        $search = $_GET['search'] ?? '';
+        $page = max(1, (int)($_GET['page'] ?? 1));
+        $perPage = 25;
+
+        $where = "l.workflow_stage IN ('POST_LOGIN', 'UNDERWRITING')";
+        $params = [];
+
+        if ($search) {
+            $s = '%' . $search . '%';
+            $where .= ' AND (l.id = ? OR l.customer_name LIKE ? OR l.mobile_number LIKE ?)';
+            $params[] = $search;
+            $params[] = $s;
+            $params[] = $s;
+        }
+
+        $total = $this->db->count('leads l', $where, $params);
+        $totalPages = max(1, ceil($total / $perPage));
+        $page = min($page, $totalPages);
+        $offset = ($page - 1) * $perPage;
+
+        $leads = $this->db->fetchAll(
+            "SELECT l.id, l.customer_name, l.mobile_number, l.bank_name, l.workflow_stage, l.updated_at,
+                    l.assigned_to, u.name as assigned_to_name
+             FROM leads l
+             LEFT JOIN users u ON l.assigned_to = u.id
+             WHERE {$where}
+             ORDER BY l.updated_at DESC
+             LIMIT {$perPage} OFFSET {$offset}",
+            $params
+        );
+
         $this->view('admin/review3', [
-            'title'   => 'Review 3 - Post Login Decision',
-            'leads'   => $leads,
-            'filters' => $filters,
+            'title'       => 'Review 3 - Post Login Decision',
+            'leads'       => $leads,
+            'total'       => $total,
+            'totalPages'  => $totalPages,
+            'page'        => $page,
+            'search'      => $search,
         ]);
     }
 
@@ -1107,10 +1132,28 @@ class AdminController extends BaseController
             return;
         }
         $timeline = $this->leadModel->getTimeline($id);
+        $submissions = $this->formModel->getSubmissionsForLead($id);
+        $documents = $this->db->fetchAll(
+            "SELECT * FROM documents WHERE lead_id = ? ORDER BY created_at DESC",
+            [$id]
+        );
+        $remarks = $this->db->fetchAll(
+            "SELECT r.*, u.name as user_name FROM remarks r LEFT JOIN users u ON r.user_id = u.id WHERE r.lead_id = ? ORDER BY r.created_at DESC",
+            [$id]
+        );
+        // Get underwriting agents only
+        $underwritingAgents = $this->db->fetchAll(
+            "SELECT u.id, u.name FROM users u JOIN roles r ON u.role_id = r.id WHERE r.name = 'underwriting' AND u.status = 'active' ORDER BY u.name"
+        );
+
         $this->view('admin/review3_detail', [
-            'title'    => 'Review 3 - Lead #' . $id,
-            'lead'     => $lead,
-            'timeline' => $timeline,
+            'title'               => 'Review 3 - Lead #' . $id,
+            'lead'                => $lead,
+            'timeline'            => $timeline,
+            'submissions'         => $submissions,
+            'documents'           => $documents,
+            'remarks'             => $remarks,
+            'underwritingAgents'  => $underwritingAgents,
         ]);
     }
 
@@ -1124,6 +1167,7 @@ class AdminController extends BaseController
         $leadId = (int)($_POST['lead_id'] ?? 0);
         $action = $_POST['action'] ?? '';
         $remark = trim($_POST['admin_approval3_remark'] ?? '');
+        $assignedTo = (int)($_POST['assigned_to'] ?? 0);
         $user = currentUser();
 
         if (!$leadId || !in_array($action, ['approve_to_underwriting', 'reject'])) {
@@ -1131,35 +1175,85 @@ class AdminController extends BaseController
             return;
         }
 
-        $newStage = ($action === 'approve_to_underwriting') ? 'UNDERWRITING' : 'REJECTED';
-        $this->workflowModel->transition($leadId, 'POST_LOGIN', $newStage, $user['id'], $user['role_name'], $remark, 'admin_review_3');
+        $lead = $this->leadModel->findById($leadId);
+        if (!$lead) {
+            $this->json(['error' => 'Lead not found.'], 404);
+            return;
+        }
 
-        $this->db->update('leads', [
+        $currentStage = $lead['workflow_stage'];
+        $newStage = ($action === 'approve_to_underwriting') ? 'UNDERWRITING' : 'REJECTED';
+
+        // Store remark
+        $this->db->insert('remarks', [
+            'lead_id'    => $leadId,
+            'user_id'    => $user['id'],
+            'stage'      => 'ADMIN_REVIEW_3',
+            'remark'     => $remark,
+            'created_at' => date('Y-m-d H:i:s'),
+        ]);
+
+        // Transition workflow
+        $this->workflowModel->transition($leadId, $currentStage, $newStage, $user['id'], $user['role_name'], $remark, 'admin_review_3');
+
+        // Update lead with remark and assignment
+        $updateData = [
             'admin_approval3_remark' => $remark,
             'updated_at' => date('Y-m-d H:i:s'),
-        ], 'id = ?', [$leadId]);
+        ];
+        if ($action === 'approve_to_underwriting' && $assignedTo) {
+            $this->leadModel->assign($leadId, $assignedTo, $user['id'], $remark, true);
+            $updateData['workflow_stage'] = $newStage;
+        }
+        $this->db->update('leads', $updateData, 'id = ?', [$leadId]);
 
-        logActivity($user['id'], 'review3_' . $action, 'lead', $leadId, 'POST_LOGIN', $newStage, $remark);
+        logActivity($user['id'], 'review3_' . $action, 'lead', $leadId, $currentStage, $newStage, $remark);
 
-        $this->json(['success' => true, 'message' => 'Decision saved.']);
+        $this->json(['success' => true, 'message' => 'Decision saved. Status: ' . humanStatus($newStage)]);
     }
 
     // ========== ADMIN REVIEW 4 (Underwriting → Dispatch) ==========
 
     public function review4(): void
     {
-        $user = currentUser();
-        $filters = [
-            'search' => $_GET['search'] ?? '',
-        ];
-        $leads = $this->leadModel->getAll($filters, (int)($_GET['page'] ?? 1), 25);
-        $leads['data'] = array_filter($leads['data'], function($l) {
-            return $l['workflow_stage'] === 'UNDERWRITING_APPROVED' || $l['workflow_stage'] === 'ADMIN_REVIEW_4';
-        });
+        $search = $_GET['search'] ?? '';
+        $page = max(1, (int)($_GET['page'] ?? 1));
+        $perPage = 25;
+
+        $where = "l.workflow_stage IN ('UNDERWRITING_APPROVED', 'DISPATCH')";
+        $params = [];
+
+        if ($search) {
+            $s = '%' . $search . '%';
+            $where .= ' AND (l.id = ? OR l.customer_name LIKE ? OR l.mobile_number LIKE ?)';
+            $params[] = $search;
+            $params[] = $s;
+            $params[] = $s;
+        }
+
+        $total = $this->db->count('leads l', $where, $params);
+        $totalPages = max(1, ceil($total / $perPage));
+        $page = min($page, $totalPages);
+        $offset = ($page - 1) * $perPage;
+
+        $leads = $this->db->fetchAll(
+            "SELECT l.id, l.customer_name, l.mobile_number, l.bank_name, l.workflow_stage, l.updated_at,
+                    l.assigned_to, u.name as assigned_to_name
+             FROM leads l
+             LEFT JOIN users u ON l.assigned_to = u.id
+             WHERE {$where}
+             ORDER BY l.updated_at DESC
+             LIMIT {$perPage} OFFSET {$offset}",
+            $params
+        );
+
         $this->view('admin/review4', [
-            'title'   => 'Review 4 - Dispatch Decision',
-            'leads'   => $leads,
-            'filters' => $filters,
+            'title'       => 'Review 4 - Dispatch Decision',
+            'leads'       => $leads,
+            'total'       => $total,
+            'totalPages'  => $totalPages,
+            'page'        => $page,
+            'search'      => $search,
         ]);
     }
 
@@ -1171,10 +1265,28 @@ class AdminController extends BaseController
             return;
         }
         $timeline = $this->leadModel->getTimeline($id);
+        $submissions = $this->formModel->getSubmissionsForLead($id);
+        $documents = $this->db->fetchAll(
+            "SELECT * FROM documents WHERE lead_id = ? ORDER BY created_at DESC",
+            [$id]
+        );
+        $remarks = $this->db->fetchAll(
+            "SELECT r.*, u.name as user_name FROM remarks r LEFT JOIN users u ON r.user_id = u.id WHERE r.lead_id = ? ORDER BY r.created_at DESC",
+            [$id]
+        );
+        // Get dispatch agents only
+        $dispatchAgents = $this->db->fetchAll(
+            "SELECT u.id, u.name FROM users u JOIN roles r ON u.role_id = r.id WHERE r.name = 'dispatch' AND u.status = 'active' ORDER BY u.name"
+        );
+
         $this->view('admin/review4_detail', [
-            'title'    => 'Review 4 - Lead #' . $id,
-            'lead'     => $lead,
-            'timeline' => $timeline,
+            'title'            => 'Review 4 - Lead #' . $id,
+            'lead'             => $lead,
+            'timeline'         => $timeline,
+            'submissions'      => $submissions,
+            'documents'        => $documents,
+            'remarks'          => $remarks,
+            'dispatchAgents'   => $dispatchAgents,
         ]);
     }
 
@@ -1188,6 +1300,7 @@ class AdminController extends BaseController
         $leadId = (int)($_POST['lead_id'] ?? 0);
         $action = $_POST['action'] ?? '';
         $remark = trim($_POST['admin_approval4_remark'] ?? '');
+        $assignedTo = (int)($_POST['assigned_to'] ?? 0);
         $user = currentUser();
 
         if (!$leadId || !in_array($action, ['approve_to_dispatch', 'reject'])) {
@@ -1195,17 +1308,41 @@ class AdminController extends BaseController
             return;
         }
 
-        $newStage = ($action === 'approve_to_dispatch') ? 'DISPATCH' : 'REJECTED';
-        $this->workflowModel->transition($leadId, 'UNDERWRITING_APPROVED', $newStage, $user['id'], $user['role_name'], $remark, 'admin_review_4');
+        $lead = $this->leadModel->findById($leadId);
+        if (!$lead) {
+            $this->json(['error' => 'Lead not found.'], 404);
+            return;
+        }
 
-        $this->db->update('leads', [
+        $currentStage = $lead['workflow_stage'];
+        $newStage = ($action === 'approve_to_dispatch') ? 'DISPATCH' : 'REJECTED';
+
+        // Store remark
+        $this->db->insert('remarks', [
+            'lead_id'    => $leadId,
+            'user_id'    => $user['id'],
+            'stage'      => 'ADMIN_REVIEW_4',
+            'remark'     => $remark,
+            'created_at' => date('Y-m-d H:i:s'),
+        ]);
+
+        // Transition workflow
+        $this->workflowModel->transition($leadId, $currentStage, $newStage, $user['id'], $user['role_name'], $remark, 'admin_review_4');
+
+        // Update lead
+        $updateData = [
             'admin_approval4_remark' => $remark,
             'updated_at' => date('Y-m-d H:i:s'),
-        ], 'id = ?', [$leadId]);
+        ];
+        if ($action === 'approve_to_dispatch' && $assignedTo) {
+            $this->leadModel->assign($leadId, $assignedTo, $user['id'], $remark, true);
+            $updateData['workflow_stage'] = $newStage;
+        }
+        $this->db->update('leads', $updateData, 'id = ?', [$leadId]);
 
-        logActivity($user['id'], 'review4_' . $action, 'lead', $leadId, 'UNDERWRITING_APPROVED', $newStage, $remark);
+        logActivity($user['id'], 'review4_' . $action, 'lead', $leadId, $currentStage, $newStage, $remark);
 
-        $this->json(['success' => true, 'message' => 'Decision saved.']);
+        $this->json(['success' => true, 'message' => 'Decision saved. Status: ' . humanStatus($newStage)]);
     }
 
     // ========== CASCADE FILTER DATA ==========

@@ -1,17 +1,24 @@
 <div class="page-header d-flex justify-content-between align-items-center">
     <div>
         <h4><i class="bi bi-clipboard2-check me-2"></i>Review 4 - Lead #<?= $lead['id'] ?></h4>
-        <small class="text-muted"><?= htmlspecialchars($lead['customer_name'] ?? '') ?> | <?= htmlspecialchars($lead['mobile_number'] ?? '') ?></small>
+        <small class="text-muted"><?= htmlspecialchars($lead['customer_name'] ?? '') ?> | <?= htmlspecialchars($lead['mobile_number'] ?? '') ?> | Stage: <span class="badge bg-info"><?= humanStatus($lead['workflow_stage']) ?></span></small>
     </div>
-    <a href="/bestdealcrm/admin/review4" class="btn btn-outline-secondary btn-sm"><i class="bi bi-arrow-left me-1"></i> Back</a>
+    <a href="/bestdealcrm/admin/review4" class="btn btn-outline-secondary btn-sm"><i class="bi bi-arrow-left me-1"></i> Back to Review 4</a>
 </div>
 
 <div class="row g-4">
     <div class="col-md-8">
+
+        <!-- Lead Info -->
         <div class="table-container mb-4">
             <h6 class="fw-bold mb-3">Lead Information</h6>
             <div class="row g-3">
-                <?php foreach (['Customer Name' => 'customer_name', 'Mobile' => 'mobile_number', 'Location' => 'location', 'State' => 'state', 'Bank' => 'bank_name', 'Existing LA' => 'existing_la', 'Salary' => 'salary', 'Remark' => 'remark', 'Stage' => 'workflow_stage'] as $label => $key): ?>
+                <?php foreach ([
+                    'Customer Name' => 'customer_name', 'Mobile' => 'mobile_number',
+                    'Location' => 'location', 'State' => 'state',
+                    'Bank' => 'bank_name', 'Existing LA' => 'existing_la',
+                    'Salary' => 'salary', 'Remark' => 'remark',
+                ] as $label => $key): ?>
                 <div class="col-md-4">
                     <small class="text-muted"><?= $label ?></small><br>
                     <strong><?= htmlspecialchars($lead[$key] ?? '-') ?></strong>
@@ -20,35 +27,143 @@
             </div>
         </div>
 
+        <!-- Form Submissions -->
+        <?php if (!empty($submissions)): ?>
         <div class="table-container mb-4">
-            <h6 class="fw-bold mb-3">Previous Remarks</h6>
-            <?php
-            $remarks = [
-                'admin_approval1_remark' => 'Admin Review 1',
-                'admin_approval2_remark' => 'Admin Review 2',
-                'admin_approval3_remark' => 'Admin Review 3',
-            ];
-            foreach ($remarks as $field => $label):
-                if (!empty($lead[$field])):
-            ?>
-                <div class="mb-2 p-2 bg-light rounded">
-                    <small class="fw-semibold text-primary"><?= $label ?>:</small>
-                    <small><?= htmlspecialchars($lead[$field]) ?></small>
+            <h6 class="fw-bold mb-3"><i class="bi bi-file-earmark-text me-1"></i> Form Submissions</h6>
+            <?php foreach ($submissions as $sub): ?>
+            <div class="card mb-3">
+                <div class="card-header d-flex justify-content-between align-items-center bg-light">
+                    <strong class="small"><?= htmlspecialchars($sub['form_name'] ?? 'Form') ?></strong>
+                    <div>
+                        <span class="badge bg-secondary"><?= htmlspecialchars($sub['status'] ?? '') ?></span>
+                        <small class="text-muted ms-2"><?= formatDate($sub['submitted_at'] ?? $sub['created_at'] ?? '') ?></small>
+                    </div>
                 </div>
-            <?php endif; endforeach; ?>
+                <div class="card-body">
+                    <?php if (!empty($sub['sections']) && is_array($sub['sections'])): ?>
+                        <?php foreach ($sub['sections'] as $section): ?>
+                            <h6 class="text-primary mt-3 mb-2 small fw-bold"><?= htmlspecialchars($section['name'] ?? '') ?></h6>
+                            <div class="row g-2 mb-2">
+                            <?php if (!empty($section['fields']) && is_array($section['fields'])): ?>
+                                <?php foreach ($section['fields'] as $field): ?>
+                                    <?php if (($field['type'] ?? '') === 'file' || ($field['type'] ?? '') === 'image'): ?>
+                                        <?php if (!empty($field['value'])): ?>
+                                        <div class="col-md-6">
+                                            <small class="text-muted"><?= htmlspecialchars($field['label'] ?? $field['field_name'] ?? '') ?></small><br>
+                                            <?php
+                                            $fileUrl = $field['value'];
+                                            if (strpos($fileUrl, 'http') === false) {
+                                                $fileUrl = '/bestdealcrm/public/uploads/documents/' . $lead['id'] . '/' . $field['value'];
+                                            }
+                                            $ext = strtolower(pathinfo($field['value'], PATHINFO_EXTENSION));
+                                            ?>
+                                            <?php if (in_array($ext, ['jpg', 'jpeg', 'png', 'gif'])): ?>
+                                                <a href="<?= htmlspecialchars($fileUrl) ?>" target="_blank"><img src="<?= htmlspecialchars($fileUrl) ?>" class="img-thumbnail" style="max-height:80px"></a>
+                                            <?php else: ?>
+                                                <a href="<?= htmlspecialchars($fileUrl) ?>" class="btn btn-sm btn-outline-primary" target="_blank"><i class="bi bi-file-earmark"></i> <?= htmlspecialchars(pathinfo($field['value'], PATHINFO_FILENAME)) ?></a>
+                                            <?php endif; ?>
+                                        </div>
+                                        <?php endif; ?>
+                                    <?php else: ?>
+                                    <div class="col-md-6">
+                                        <small class="text-muted"><?= htmlspecialchars($field['label'] ?? $field['field_name'] ?? '') ?></small><br>
+                                        <strong class="small"><?= htmlspecialchars($field['value'] ?? '-') ?></strong>
+                                    </div>
+                                    <?php endif; ?>
+                                <?php endforeach; ?>
+                            <?php endif; ?>
+                            </div>
+                        <?php endforeach; ?>
+                    <?php elseif (!empty($sub['values'])): ?>
+                        <?php
+                        $values = is_string($sub['values']) ? json_decode($sub['values'], true) : $sub['values'];
+                        if (is_array($values)):
+                        ?>
+                        <div class="row g-2">
+                        <?php foreach ($values as $k => $v): ?>
+                            <div class="col-md-6">
+                                <small class="text-muted"><?= htmlspecialchars($k) ?></small><br>
+                                <strong class="small"><?= htmlspecialchars($v ?? '-') ?></strong>
+                            </div>
+                        <?php endforeach; ?>
+                        </div>
+                        <?php endif; ?>
+                    <?php else: ?>
+                        <p class="text-muted small mb-0">No submission values found.</p>
+                    <?php endif; ?>
+                </div>
+            </div>
+            <?php endforeach; ?>
         </div>
+        <?php endif; ?>
 
+        <!-- Documents -->
+        <?php if (!empty($documents)): ?>
+        <div class="table-container mb-4">
+            <h6 class="fw-bold mb-3"><i class="bi bi-paperclip me-1"></i> Uploaded Documents</h6>
+            <div class="row g-2">
+            <?php foreach ($documents as $doc): ?>
+                <div class="col-md-6">
+                    <div class="d-flex align-items-center p-2 bg-light rounded">
+                        <i class="bi bi-file-earmark me-2"></i>
+                        <div class="flex-grow-1">
+                            <small class="fw-semibold"><?= htmlspecialchars($doc['original_name'] ?? $doc['document_type'] ?? 'Document') ?></small><br>
+                            <small class="text-muted"><?= $doc['document_type'] ?? '' ?> · <?= number_format(($doc['file_size'] ?? 0) / 1024) ?>KB</small>
+                        </div>
+                        <a href="/bestdealcrm/admin/documents/<?= $doc['id'] ?>/download" class="btn btn-sm btn-outline-primary"><i class="bi bi-download"></i></a>
+                    </div>
+                </div>
+            <?php endforeach; ?>
+            </div>
+        </div>
+        <?php endif; ?>
+
+        <!-- Previous Remarks -->
+        <?php if (!empty($remarks)): ?>
+        <div class="table-container mb-4">
+            <h6 class="fw-bold mb-3"><i class="bi bi-chat-left-text me-1"></i> All Remarks</h6>
+            <?php foreach ($remarks as $rm): ?>
+            <div class="mb-2 p-2 bg-light rounded">
+                <div class="d-flex justify-content-between">
+                    <small class="fw-semibold text-primary"><?= htmlspecialchars($rm['user_name'] ?? 'Admin') ?> — <?= htmlspecialchars($rm['stage'] ?? '') ?></small>
+                    <small class="text-muted"><?= formatDate($rm['created_at'] ?? '') ?></small>
+                </div>
+                <small><?= nl2br(htmlspecialchars($rm['remark'] ?? '')) ?></small>
+            </div>
+            <?php endforeach; ?>
+        </div>
+        <?php endif; ?>
+
+        <!-- Admin Review 4 Form -->
         <div class="table-container">
-            <h6 class="fw-bold mb-3">Admin Decision - Send to Dispatch?</h6>
+            <h6 class="fw-bold mb-3"><i class="bi bi-gear me-1"></i> Admin Decision - Assign to Dispatch</h6>
             <form id="review4Form">
                 <?= csrfField() ?>
                 <input type="hidden" name="lead_id" value="<?= $lead['id'] ?>">
+
+                <div class="mb-3">
+                    <label class="form-label small fw-semibold">Assign to Dispatch Agent *</label>
+                    <select name="assigned_to" class="form-select" id="dispatchAgent" required>
+                        <option value="">-- Select Dispatch Agent --</option>
+                        <?php foreach ($dispatchAgents as $agent): ?>
+                            <option value="<?= $agent['id'] ?>" <?= ($lead['assigned_to'] == $agent['id']) ? 'selected' : '' ?>>
+                                <?= htmlspecialchars($agent['name']) ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                    <?php if (empty($dispatchAgents)): ?>
+                        <small class="text-danger">No dispatch agents found. Please create a user with Dispatch role first.</small>
+                    <?php endif; ?>
+                </div>
+
                 <div class="mb-3">
                     <label class="form-label small fw-semibold">Admin Remark</label>
-                    <textarea name="admin_approval4_remark" class="form-control" rows="3" placeholder="Add your remark..."></textarea>
+                    <textarea name="admin_approval4_remark" class="form-control" rows="3" placeholder="Add your remark..."><?= htmlspecialchars($lead['admin_approval4_remark'] ?? '') ?></textarea>
                 </div>
+
                 <div class="d-flex gap-2">
-                    <button type="button" class="btn btn-success" onclick="processReview4('approve_to_dispatch')">
+                    <button type="button" class="btn btn-success" onclick="processReview4('approve_to_dispatch')" <?= empty($dispatchAgents) ? 'disabled' : '' ?>>
                         <i class="bi bi-check-lg me-1"></i> Approve → Send to Dispatch
                     </button>
                     <button type="button" class="btn btn-danger" onclick="processReview4('reject')">
@@ -60,6 +175,7 @@
     </div>
 
     <div class="col-md-4">
+        <!-- Timeline -->
         <div class="table-container">
             <h6 class="fw-bold mb-3"><i class="bi bi-clock-history me-1"></i> Timeline</h6>
             <?php if (!empty($timeline)): ?>
@@ -87,6 +203,12 @@ async function processReview4(action) {
     var form = document.getElementById('review4Form');
     var formData = new FormData(form);
     formData.append('action', action);
+
+    var assignedAgent = document.getElementById('dispatchAgent').value;
+    if (action === 'approve_to_dispatch' && !assignedAgent) {
+        showToast('Please select a dispatch agent.', 'warning');
+        return;
+    }
 
     var msg = action === 'approve_to_dispatch' ? 'Approve and send to Dispatch?' : 'Reject this lead?';
     if (!confirm(msg)) return;
