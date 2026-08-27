@@ -65,6 +65,7 @@ $router->middleware(['AuthMiddleware'], function ($router) {
             $router->post('/users/update', 'AdminController', 'updateUser');
             $router->post('/users/toggle-status', 'AdminController', 'toggleUserStatus');
             $router->post('/users/reset-password', 'AdminController', 'resetUserPassword');
+            $router->post('/users/delete', 'AdminController', 'deleteUser');
             $router->get('/users/{id}', 'AdminController', 'userProfile');
             
             // Lead Management

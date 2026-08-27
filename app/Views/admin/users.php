@@ -56,6 +56,9 @@
                                 <a href="/bestdealcrm/admin/users/<?= $u['id'] ?>" class="btn btn-outline-primary" title="View"><i class="bi bi-eye"></i></a>
                                 <button class="btn btn-outline-warning" title="Edit" onclick="editUser(<?= $u['id'] ?>, '<?= htmlspecialchars($u['name']) ?>', '<?= htmlspecialchars($u['email']) ?>', '<?= $u['role_id'] ?>', '<?= $u['team_leader_id'] ?? '' ?>')"><i class="bi bi-pencil"></i></button>
                                 <button class="btn btn-outline-<?= $u['status'] === 'active' ? 'danger' : 'success' ?>" title="<?= $u['status'] === 'active' ? 'Deactivate' : 'Activate' ?>" onclick="toggleStatus(<?= $u['id'] ?>)"><i class="bi bi-<?= $u['status'] === 'active' ? 'person-x' : 'person-check' ?>"></i></button>
+                                <?php $cu = currentUser(); if ($u['id'] != 1 && ($cu['id'] ?? 0) != $u['id']): ?>
+                                <button class="btn btn-outline-danger" title="Delete User" onclick="deleteUser(<?= $u['id'] ?>, '<?= htmlspecialchars(addslashes($u['name'])) ?>')"><i class="bi bi-trash"></i></button>
+                                <?php endif; ?>
                             </div>
                         </td>
                     </tr>
@@ -198,5 +201,18 @@ async function toggleStatus(userId) {
     const result = await ajaxPost('/bestdealcrm/admin/users/toggle-status', fd);
     if (result && result.success) { showToast('Status updated.', 'success'); setTimeout(function() { location.reload(); }, 500); }
     else showToast(result.error || 'Error.', 'danger');
+}
+
+async function deleteUser(userId, userName) {
+    if (!confirm('Delete user "' + userName + '"?\n\nTheir name will be changed to EX_EMPLOYEE and they will be deactivated.')) return;
+    const fd = new FormData();
+    fd.append('user_id', userId);
+    const result = await ajaxPost('/bestdealcrm/admin/users/delete', fd);
+    if (result && result.success) {
+        showToast(result.message, 'success');
+        setTimeout(function() { location.reload(); }, 800);
+    } else {
+        showToast(result.error || 'Error deleting user.', 'danger');
+    }
 }
 </script>

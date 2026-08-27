@@ -207,6 +207,60 @@ class AdminController extends BaseController
         }
     }
 
+    public function deleteUser(): void
+    {
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            $this->json(['error' => 'Invalid request.'], 405);
+            return;
+        }
+
+        $id = (int)($_POST['user_id'] ?? 0);
+        if (!$id) {
+            $this->json(['error' => 'Invalid user ID.'], 400);
+            return;
+        }
+
+        // Prevent deleting yourself
+        $currentUser = currentUser();
+        if ($currentUser['id'] == $id) {
+            $this->json(['error' => 'You cannot delete your own account.'], 400);
+            return;
+        }
+
+        // Prevent deleting Super Admin (id=1)
+        if ($id == 1) {
+            $this->json(['error' => 'Cannot delete the main admin account.'], 400);
+            return;
+        }
+
+        $user = $this->db->fetchOne("SELECT id, name, username, email FROM users WHERE id = ?", [$id]);
+        if (!$user) {
+            $this->json(['error' => 'User not found.'], 404);
+            return;
+        }
+
+        // Soft delete: rename, deactivate, clear password
+        $this->db->update('users', [
+            'name'            => 'EX_EMPLOYEE (' . $user['name'] . ')',
+            'email'           => 'ex_' . $id . '@deleted.local',
+            'username'        => 'ex_' . $id,
+            'password_hash'   => '',
+            'status'          => 'inactive',
+            'team_leader_id'  => null,
+            'updated_at'      => date('Y-m-d H:i:s'),
+        ], 'id = ?', [$id]);
+
+        // Unassign all their leads — set assigned_to to NULL
+        $this->db->update('leads', [
+            'assigned_to' => null,
+            'updated_at'  => date('Y-m-d H:i:s'),
+        ], 'assigned_to = ?', [$id]);
+
+        logActivity($currentUser['id'], 'user_deleted', 'user', $id, null, $user['name'] . ' → EX_EMPLOYEE');
+
+        $this->json(['success' => true, 'message' => "User {$user['name']} deleted. Name changed to EX_EMPLOYEE."]);
+    }
+
     public function userProfile(int $id): void
     {
         $user = $this->userModel->findById($id);
