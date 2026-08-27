@@ -130,7 +130,7 @@ class AgentController extends BaseController
         // Set lead data
         $data['workflow_stage'] = 'LEAD_ASSIGNED';
         $data['assigned_to'] = $user['id'];
-        $data['created_at'] = date('Y-m-d H:i:s');
+        $data['created_at'] = nowIST();
 
         $leadId = $this->leadModel->create($data);
 
@@ -139,7 +139,7 @@ class AgentController extends BaseController
             'lead_id'     => $leadId,
             'assigned_to' => $user['id'],
             'assigned_by' => $user['id'],
-            'assigned_at' => date('Y-m-d H:i:s'),
+            'assigned_at' => nowIST(),
             'status'      => 'active',
         ]);
 
@@ -337,14 +337,14 @@ class AgentController extends BaseController
             $submissionId = $existing['id'];
             $this->db->update('form_submissions', [
                 'status'       => 'submitted',
-                'submitted_at' => date('Y-m-d H:i:s'),
-                'updated_at'   => date('Y-m-d H:i:s'),
+                'submitted_at' => nowIST(),
+                'updated_at'   => nowIST(),
             ], 'id = ?', [$submissionId]);
         } else {
             $submissionId = $this->formModel->submitForm($formId, $leadId, $user['id'], $values);
             $this->db->update('form_submissions', [
                 'status'       => 'submitted',
-                'submitted_at' => date('Y-m-d H:i:s'),
+                'submitted_at' => nowIST(),
             ], 'id = ?', [$submissionId]);
         }
 
@@ -448,7 +448,7 @@ class AgentController extends BaseController
 
             // Case 1: Disposition update
             if ($disposition !== '' || array_key_exists('disposition', $_POST)) {
-                $updateData = ['updated_at' => date('Y-m-d H:i:s')];
+                $updateData = ['updated_at' => nowIST()];
                 if (in_array('agent_disposition', $existingCols)) {
                     $updateData['agent_disposition'] = $disposition;
                 }
@@ -466,7 +466,7 @@ class AgentController extends BaseController
                 if (in_array('agent_remark', $existingCols)) {
                     $this->db->update('leads', [
                         'agent_remark' => $agentRemark,
-                        'updated_at' => date('Y-m-d H:i:s'),
+                        'updated_at' => nowIST(),
                     ], 'id = ?', [$leadId]);
                     logActivity($user['id'], 'remark_updated', 'lead', $leadId);
                     $this->json(['success' => true, 'message' => 'Remark saved.']);
@@ -493,7 +493,7 @@ class AgentController extends BaseController
                     try {
                         $this->db->update('leads', [
                             $field => $value ?: null,
-                            'updated_at' => date('Y-m-d H:i:s'),
+                            'updated_at' => nowIST(),
                         ], 'id = ?', [$leadId]);
                         logActivity($user['id'], 'field_updated', 'lead', $leadId, null, json_encode([$field => $value]));
                         $this->json(['success' => true, 'message' => ucfirst(str_replace('_', ' ', $field)) . ' updated.']);
@@ -614,7 +614,7 @@ class AgentController extends BaseController
                 'mime_type'      => $mimeType,
                 'file_size'      => $file['size'],
                 'document_type'  => $_POST['document_type'] ?? 'general',
-                'created_at'     => date('Y-m-d H:i:s'),
+                'created_at'     => nowIST(),
             ]);
 
             logActivity($user['id'], 'document_uploaded', 'document', (int)$docId, null, $file['name']);

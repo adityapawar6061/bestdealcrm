@@ -40,9 +40,10 @@ define('ROOT_PATH', $rootPath);
 
 // Step-by-step logging to find exactly where the 500 happens
 function _log($msg) {
+    $ist = (new \DateTime('now', new \DateTimeZone('Asia/Kolkata')))->format('Y-m-d H:i:s');
     @file_put_contents(
         dirname(__DIR__) . '/storage/logs/app.log',
-        date('Y-m-d H:i:s') . ' | ' . $msg . "\n",
+        $ist . ' | ' . $msg . "\n",
         FILE_APPEND
     );
 }
@@ -54,9 +55,10 @@ _log('ROOT_PATH: ' . $rootPath);
 register_shutdown_function(function() {
     $error = error_get_last();
     if ($error && in_array($error['type'], [E_ERROR, E_PARSE, E_CORE_ERROR, E_COMPILE_ERROR])) {
+        $ist = (new \DateTime('now', new \DateTimeZone('Asia/Kolkata')))->format('Y-m-d H:i:s');
         @file_put_contents(
             dirname(__DIR__) . '/storage/logs/shutdown_error.log',
-            date('Y-m-d H:i:s') . ' | ' . $error['message'] . ' | ' . $error['file'] . ':' . $error['line'] . "\n",
+            $ist . ' | ' . $error['message'] . ' | ' . $error['file'] . ':' . $error['line'] . "\n",
             FILE_APPEND
         );
     }

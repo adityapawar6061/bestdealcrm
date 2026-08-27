@@ -182,7 +182,7 @@ class UnderwritingController extends BaseController
             'user_id'    => $user['id'],
             'stage'      => 'UNDERWRITING',
             'remark'     => $remark,
-            'created_at' => date('Y-m-d H:i:s'),
+            'created_at' => nowIST(),
         ]);
 
         // Transition workflow
@@ -195,7 +195,7 @@ class UnderwritingController extends BaseController
         if ($action === 'approve') {
             $this->db->update('leads', [
                 'workflow_stage' => 'DISPATCH',
-                'updated_at'     => date('Y-m-d H:i:s'),
+                'updated_at'     => nowIST(),
             ], 'id = ?', [$leadId]);
 
             $this->workflowModel->transition(

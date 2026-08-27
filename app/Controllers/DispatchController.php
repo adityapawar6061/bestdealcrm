@@ -178,7 +178,7 @@ class DispatchController extends BaseController
             'user_id'    => $user['id'],
             'stage'      => 'DISPATCH',
             'remark'     => $remark,
-            'created_at' => date('Y-m-d H:i:s'),
+            'created_at' => nowIST(),
         ]);
 
         // Transition workflow

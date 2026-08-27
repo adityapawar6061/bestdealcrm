@@ -84,7 +84,7 @@ class CalculatorController extends BaseController
                 'save_type'      => $saveType,
                 'data'           => json_encode($decoded),
                 'created_by'     => $user['id'] ?? null,
-                'created_at'     => date('Y-m-d H:i:s'),
+                'created_at'     => nowIST(),
             ]);
 
             logActivity($user['id'] ?? null, 'calculator_saved', 'calculator', null, null,
@@ -175,7 +175,7 @@ class CalculatorController extends BaseController
             $this->db->update('calculator_saves', [
                 'data'          => json_encode($decoded),
                 'customer_name' => $customerName,
-                'updated_at'    => date('Y-m-d H:i:s'),
+                'updated_at'    => nowIST(),
             ], 'code = ?', [$code]);
 
             $this->json(['success' => true, 'message' => 'Updated successfully!']);

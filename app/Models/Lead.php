@@ -24,15 +24,15 @@ class Lead
 
     public function create(array $data): string
     {
-        $data['created_at'] = date('Y-m-d H:i:s');
-        $data['updated_at'] = date('Y-m-d H:i:s');
+        $data['created_at'] = nowIST();
+        $data['updated_at'] = nowIST();
         $data['workflow_stage'] = $data['workflow_stage'] ?? 'LEAD_UPLOADED';
         return $this->db->insert('leads', $data);
     }
 
     public function update(int $id, array $data): int
     {
-        $data['updated_at'] = date('Y-m-d H:i:s');
+        $data['updated_at'] = nowIST();
         return $this->db->update('leads', $data, 'id = ?', [$id]);
     }
 
@@ -40,7 +40,7 @@ class Lead
     {
         $result = $this->db->update('leads', [
             'workflow_stage' => $stage,
-            'updated_at'     => date('Y-m-d H:i:s'),
+            'updated_at'     => nowIST(),
         ], 'id = ?', [$id]);
 
         if ($result > 0) {
@@ -67,7 +67,7 @@ class Lead
             'lead_id'     => $leadId,
             'assigned_to' => $assignedTo,
             'assigned_by' => $assignedBy,
-            'assigned_at' => date('Y-m-d H:i:s'),
+            'assigned_at' => nowIST(),
             'status'      => 'active',
             'remark'      => $remark,
         ]);
@@ -76,7 +76,7 @@ class Lead
         $updateData = [
             'assigned_to' => $assignedTo,
             'assigned_by' => $assignedBy,
-            'updated_at'  => date('Y-m-d H:i:s'),
+            'updated_at'  => nowIST(),
         ];
         if (!$preserveStage) {
             $updateData['workflow_stage'] = 'LEAD_ASSIGNED';

@@ -44,7 +44,7 @@ class Workflow
         // Update lead stage
         \Database::getInstance()->update('leads', [
             'workflow_stage' => $toStage,
-            'updated_at'     => date('Y-m-d H:i:s'),
+            'updated_at'     => nowIST(),
         ], 'id = ?', [$leadId]);
 
         // Record in workflow history
@@ -56,7 +56,7 @@ class Workflow
             'performed_by'   => $performedBy,
             'user_role'      => $userRole,
             'remark'         => $remark,
-            'created_at'     => date('Y-m-d H:i:s'),
+            'created_at'     => nowIST(),
         ]);
 
         // Log activity

@@ -215,13 +215,13 @@ class LoginAgentController extends BaseController
             $submissionId = $existing['id'];
             $this->db->update('form_submissions', [
                 'status'       => 'submitted',
-                'submitted_at' => date('Y-m-d H:i:s'),
+                'submitted_at' => nowIST(),
             ], 'id = ?', [$submissionId]);
         } else {
             $submissionId = $this->formModel->submitForm($formId, $leadId, $user['id'], $values);
             $this->db->update('form_submissions', [
                 'status'       => 'submitted',
-                'submitted_at' => date('Y-m-d H:i:s'),
+                'submitted_at' => nowIST(),
             ], 'id = ?', [$submissionId]);
         }
 
@@ -273,7 +273,7 @@ class LoginAgentController extends BaseController
             'user_id'    => $user['id'],
             'stage'      => 'RETURNED_TO_AGENT',
             'remark'     => $remark,
-            'created_at' => date('Y-m-d H:i:s'),
+            'created_at' => nowIST(),
         ]);
 
         // Notify the original agent

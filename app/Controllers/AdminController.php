@@ -262,13 +262,13 @@ class AdminController extends BaseController
                 'password_hash'   => '',
                 'status'          => 'inactive',
                 'team_leader_id'  => null,
-                'updated_at'      => date('Y-m-d H:i:s'),
+                'updated_at'      => nowIST(),
             ], 'id = ?', [$id]);
 
             // 2. Unassign all their leads
             $this->db->update('leads', [
                 'assigned_to' => null,
-                'updated_at'  => date('Y-m-d H:i:s'),
+                'updated_at'  => nowIST(),
             ], 'assigned_to = ?', [$id]);
 
             $this->db->commit();
@@ -415,7 +415,7 @@ class AdminController extends BaseController
                 'filename'     => $file['name'],
                 'uploaded_by'  => $userId,
                 'status'       => 'processing',
-                'created_at'   => date('Y-m-d H:i:s'),
+                'created_at'   => nowIST(),
             ]);
 
             // Read CSV file
@@ -556,7 +556,7 @@ class AdminController extends BaseController
                     'total_rows'   => count($rows),
                     'imported'     => $importedCount,
                     'skipped'      => $skippedCount,
-                    'completed_at' => date('Y-m-d H:i:s'),
+                    'completed_at' => nowIST(),
                 ], 'id = ?', [$uploadId]);
             }
 
@@ -805,7 +805,7 @@ class AdminController extends BaseController
             'user_id'    => $user['id'],
             'stage'      => 'ADMIN_REVIEW_1',
             'remark'     => $remark,
-            'created_at' => date('Y-m-d H:i:s'),
+            'created_at' => nowIST(),
         ]);
 
         // Transition workflow
@@ -824,7 +824,7 @@ class AdminController extends BaseController
             $this->leadModel->assign($leadId, $assignedTo, $user['id'], $remark);
             $this->db->update('leads', [
                 'workflow_stage' => $newStage,
-                'updated_at'     => date('Y-m-d H:i:s'),
+                'updated_at'     => nowIST(),
             ], 'id = ?', [$leadId]);
         }
 
@@ -886,7 +886,7 @@ class AdminController extends BaseController
             'user_id'    => $user['id'],
             'stage'      => 'ADMIN_REVIEW_2',
             'remark'     => $remark,
-            'created_at' => date('Y-m-d H:i:s'),
+            'created_at' => nowIST(),
         ]);
 
         $this->workflowModel->transition(
@@ -1117,7 +1117,7 @@ class AdminController extends BaseController
                 'mime_type'      => $mimeType,
                 'file_size'      => $file['size'],
                 'document_type'  => $_POST['document_type'] ?? 'general',
-                'created_at'     => date('Y-m-d H:i:s'),
+                'created_at'     => nowIST(),
             ]);
 
             logActivity(currentUser()['id'], 'document_uploaded', 'document', (int)$docId, null, $file['name']);
@@ -1266,7 +1266,7 @@ class AdminController extends BaseController
             'user_id'    => $user['id'],
             'stage'      => 'ADMIN_REVIEW_3',
             'remark'     => $remark,
-            'created_at' => date('Y-m-d H:i:s'),
+            'created_at' => nowIST(),
         ]);
 
         // Transition workflow
@@ -1274,7 +1274,7 @@ class AdminController extends BaseController
 
         // Update lead — assign agent and stage
         $updateData = [
-            'updated_at' => date('Y-m-d H:i:s'),
+            'updated_at' => nowIST(),
         ];
         if ($action === 'approve_to_underwriting' && $assignedTo) {
             $this->leadModel->assign($leadId, $assignedTo, $user['id'], $remark, true);
@@ -1398,7 +1398,7 @@ class AdminController extends BaseController
             'user_id'    => $user['id'],
             'stage'      => 'ADMIN_REVIEW_4',
             'remark'     => $remark,
-            'created_at' => date('Y-m-d H:i:s'),
+            'created_at' => nowIST(),
         ]);
 
         // Transition workflow
@@ -1406,7 +1406,7 @@ class AdminController extends BaseController
 
         // Update lead — assign agent and stage
         $updateData = [
-            'updated_at' => date('Y-m-d H:i:s'),
+            'updated_at' => nowIST(),
         ];
         if ($action === 'approve_to_dispatch' && $assignedTo) {
             $this->leadModel->assign($leadId, $assignedTo, $user['id'], $remark, true);
@@ -1530,7 +1530,7 @@ class AdminController extends BaseController
 
         $this->db->update('users', [
             'password_hash' => password_hash($newPassword, PASSWORD_DEFAULT),
-            'updated_at'    => date('Y-m-d H:i:s'),
+            'updated_at'    => nowIST(),
         ], 'id = ?', [$user['id']]);
 
         logActivity($user['id'], 'password_changed', 'user', $user['id']);
@@ -1582,7 +1582,7 @@ class AdminController extends BaseController
                 'name'       => $name,
                 'columns'    => json_encode($header),
                 'created_by' => currentUser()['id'],
-                'created_at' => date('Y-m-d H:i:s'),
+                'created_at' => nowIST(),
             ]);
 
             // Save CSV file

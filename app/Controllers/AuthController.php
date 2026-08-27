@@ -93,7 +93,7 @@ class AuthController extends BaseController
 
             // Update last login
             $this->db->update('users', [
-                'last_login_at' => date('Y-m-d H:i:s'),
+                'last_login_at' => nowIST(),
             ], 'id = ?', [$user['id']]);
 
             // Log the login
@@ -104,7 +104,7 @@ class AuthController extends BaseController
                 'user_id'    => $user['id'],
                 'ip_address' => $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0',
                 'user_agent' => $_SERVER['HTTP_USER_AGENT'] ?? '',
-                'login_at'   => date('Y-m-d H:i:s'),
+                'login_at'   => nowIST(),
             ]);
 
             $this->redirectBasedOnRole();
@@ -176,7 +176,7 @@ class AuthController extends BaseController
 
             $this->db->update('users', [
                 'password_hash' => password_hash($newPassword, PASSWORD_DEFAULT),
-                'updated_at'    => date('Y-m-d H:i:s'),
+                'updated_at'    => nowIST(),
             ], 'id = ?', [$user['id']]);
 
             logActivity($user['id'], 'password_changed', 'user', $user['id']);

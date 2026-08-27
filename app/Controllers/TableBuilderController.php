@@ -52,7 +52,7 @@ class TableBuilderController extends BaseController
             'display_name'   => $data['display_name'],
             'description'    => $data['description'] ?? '',
             'created_by'     => currentUser()['id'],
-            'created_at'     => date('Y-m-d H:i:s'),
+            'created_at'     => nowIST(),
         ]);
 
         $this->json(['success' => true, 'message' => 'Table created. Add columns next.', 'id' => $tableId]);

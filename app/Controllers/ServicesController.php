@@ -49,7 +49,7 @@ class ServicesController extends BaseController
                 'processing_bank'  => trim($_POST['processing_bank'] ?? ''),
                 'cibil_score'      => (int)($_POST['cibil_score'] ?? 0),
                 'status'           => 'pending',
-                'created_at'       => date('Y-m-d H:i:s'),
+                'created_at'       => nowIST(),
             ];
 
             if (empty($data['customer_name']) || empty($data['mobile'])) {
@@ -157,7 +157,7 @@ class ServicesController extends BaseController
                 'admin_approved' => $approved,
                 'admin_remarks'  => $remarks,
                 'status'         => 'replied',
-                'updated_at'     => date('Y-m-d H:i:s'),
+                'updated_at'     => nowIST(),
             ];
             if (!empty($files)) {
                 $existing = $this->db->fetchOne("SELECT admin_files FROM pf_requests WHERE id = ?", [$id]);
@@ -222,7 +222,7 @@ class ServicesController extends BaseController
                 'calculator_id'     => trim($_POST['calculator_id'] ?? ''),
                 'requirement'       => trim($_POST['requirement'] ?? ''),
                 'status'            => 'pending',
-                'created_at'        => date('Y-m-d H:i:s'),
+                'created_at'        => nowIST(),
             ];
 
             if (empty($data['name_as_pan']) || empty($data['pan_no']) || empty($data['mobile'])) {
@@ -342,7 +342,7 @@ class ServicesController extends BaseController
                 'agent_cibil_remarks' => $agentCibilRemarks,
                 'admin_remarks'       => $adminRemarks,
                 'status'              => 'replied',
-                'updated_at'          => date('Y-m-d H:i:s'),
+                'updated_at'          => nowIST(),
             ];
             if ($pdf1) $updateData['cibil_pdf1'] = $pdf1;
             if ($pdf2) $updateData['cibil_pdf2'] = $pdf2;
@@ -418,7 +418,7 @@ class ServicesController extends BaseController
                 'loan_amount'   => trim($_POST['loan_amount'] ?? ''),
                 'disposition'   => trim($_POST['disposition'] ?? ''),
                 'remarks'       => trim($_POST['remarks'] ?? ''),
-                'created_at'    => date('Y-m-d H:i:s'),
+                'created_at'    => nowIST(),
             ];
 
             if (empty($data['mobile_no']) || empty($data['customer_name']) || empty($data['disposition'])) {
@@ -619,7 +619,7 @@ class ServicesController extends BaseController
                 'loan_amount'   => trim($_POST['loan_amount'] ?? ''),
                 'disposition'   => trim($_POST['disposition'] ?? ''),
                 'remarks'       => trim($_POST['remarks'] ?? ''),
-                'created_at'    => date('Y-m-d H:i:s'),
+                'created_at'    => nowIST(),
             ];
 
             if (empty($data['mobile_no']) || empty($data['customer_name']) || empty($data['disposition'])) {

@@ -31,7 +31,7 @@ class User
     {
         $data['password_hash'] = password_hash($data['password'], PASSWORD_DEFAULT);
         unset($data['password']);
-        $data['created_at'] = date('Y-m-d H:i:s');
+        $data['created_at'] = nowIST();
         $data['status'] = $data['status'] ?? 'active';
         
         return $this->db->insert('users', $data);
@@ -39,7 +39,7 @@ class User
 
     public function update(int $id, array $data): int
     {
-        $data['updated_at'] = date('Y-m-d H:i:s');
+        $data['updated_at'] = nowIST();
         return $this->db->update('users', $data, 'id = ?', [$id]);
     }
 
@@ -47,7 +47,7 @@ class User
     {
         return $this->db->update('users', [
             'password_hash' => password_hash($newPassword, PASSWORD_DEFAULT),
-            'updated_at' => date('Y-m-d H:i:s'),
+            'updated_at' => nowIST(),
         ], 'id = ?', [$id]);
     }
 
@@ -57,7 +57,7 @@ class User
         $newStatus = ($user['status'] === 'active') ? 'inactive' : 'active';
         return $this->db->update('users', [
             'status' => $newStatus,
-            'updated_at' => date('Y-m-d H:i:s'),
+            'updated_at' => nowIST(),
         ], 'id = ?', [$id]);
     }
 

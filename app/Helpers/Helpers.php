@@ -18,14 +18,30 @@ function slugify(string $text): string
 /**
  * Format date for display
  */
+/**
+ * Get current IST time in specified format
+ * Always uses Asia/Kolkata regardless of server timezone
+ */
+function nowIST(string $format = 'Y-m-d H:i:s'): string
+{
+    return (new \DateTime('now', new \DateTimeZone('Asia/Kolkata')))->format($format);
+}
+
+/**
+ * Format date for display
+ */
 function formatDate(string $date, string $format = 'd M Y, h:i A'): string
 {
     if (empty($date) || $date === '0000-00-00 00:00:00' || $date === '0000-00-00') return '';
     try {
-        // Force-interpret as IST since all dates are stored using PHP date() with IST timezone
-        // Do NOT use I/S/T letters in format — they are PHP format codes (DST/ordinal/timezone)
-        $dt = new \DateTime($date, new \DateTimeZone('Asia/Kolkata'));
-        return $dt->format($format) . ' (IST)';
+        // Date strings are stored as IST. Display them directly without timezone conversion.
+        $dt = \DateTime::createFromFormat('Y-m-d H:i:s', $date, new \DateTimeZone('UTC'));
+        if ($dt) {
+            // Stored value is already IST — just format it
+            return $dt->format($format) . ' (IST)';
+        }
+        // Fallback: just format the raw string
+        return $date . ' (IST)';
     } catch (\Exception $e) {
         return $date . ' (IST)';
     }
@@ -62,6 +78,8 @@ function truncate(string $text, int $length = 100): string
 function logActivity(int $userId, string $action, string $entityType = '', ?int $entityId = null, ?string $oldValue = null, ?string $newValue = null): void
 {
     try {
+        // Always store IST time explicitly
+        $istNow = (new \DateTime('now', new \DateTimeZone('Asia/Kolkata')))->format('Y-m-d H:i:s');
         Database::getInstance()->insert('activity_logs', [
             'user_id'     => $userId,
             'action'      => $action,
@@ -71,7 +89,7 @@ function logActivity(int $userId, string $action, string $entityType = '', ?int 
             'new_value'   => $newValue,
             'ip_address'  => $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0',
             'user_agent'  => $_SERVER['HTTP_USER_AGENT'] ?? '',
-            'created_at'  => date('Y-m-d H:i:s'),
+            'created_at'  => $istNow,
         ]);
     } catch (\Exception $e) {
         error_log("Failed to log activity: " . $e->getMessage());
@@ -84,6 +102,8 @@ function logActivity(int $userId, string $action, string $entityType = '', ?int 
 function createNotification(int $userId, string $title, string $message, string $type = 'info', ?int $leadId = null): void
 {
     try {
+        // Always store IST time explicitly
+        $istNow = (new \DateTime('now', new \DateTimeZone('Asia/Kolkata')))->format('Y-m-d H:i:s');
         Database::getInstance()->insert('notifications', [
             'user_id'        => $userId,
             'title'          => $title,
@@ -91,7 +111,7 @@ function createNotification(int $userId, string $title, string $message, string 
             'type'           => $type,
             'related_lead_id'=> $leadId,
             'is_read'        => 0,
-            'created_at'     => date('Y-m-d H:i:s'),
+            'created_at'     => $istNow,
         ]);
     } catch (\Exception $e) {
         error_log("Failed to create notification: " . $e->getMessage());

@@ -171,7 +171,7 @@ class ReportController extends BaseController
             'description'    => $description,
             'columns_config' => json_encode($columnsConfig),
             'created_by'     => $user['id'],
-            'created_at'     => date('Y-m-d H:i:s'),
+            'created_at'     => nowIST(),
         ]);
 
         logActivity($user['id'], 'report_template_created', 'report_template', (int)$templateId);
@@ -240,7 +240,7 @@ class ReportController extends BaseController
             'name'           => $name,
             'description'    => $description,
             'columns_config' => json_encode($columnsConfig),
-            'updated_at'     => date('Y-m-d H:i:s'),
+            'updated_at'     => nowIST(),
         ], 'id = ?', [$id]);
 
         $this->json(['success' => true, 'message' => 'Template updated.']);

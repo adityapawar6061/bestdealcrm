@@ -22,14 +22,14 @@ class DynamicForm
 
     public function create(array $data): string
     {
-        $data['created_at'] = date('Y-m-d H:i:s');
+        $data['created_at'] = nowIST();
         $data['status'] = $data['status'] ?? 'active';
         return $this->db->insert('forms', $data);
     }
 
     public function update(int $id, array $data): int
     {
-        $data['updated_at'] = date('Y-m-d H:i:s');
+        $data['updated_at'] = nowIST();
         return $this->db->update('forms', $data, 'id = ?', [$id]);
     }
 
@@ -116,7 +116,7 @@ class DynamicForm
      */
     public function createSection(array $data): string
     {
-        $data['created_at'] = date('Y-m-d H:i:s');
+        $data['created_at'] = nowIST();
         return $this->db->insert('form_sections', $data);
     }
 
@@ -151,7 +151,7 @@ class DynamicForm
      */
     public function createField(array $data): string
     {
-        $data['created_at'] = date('Y-m-d H:i:s');
+        $data['created_at'] = nowIST();
         return $this->db->insert('form_fields', $data);
     }
 
@@ -198,8 +198,8 @@ class DynamicForm
             'lead_id'      => $leadId,
             'submitted_by' => $submittedBy,
             'status'       => 'submitted',
-            'created_at'   => date('Y-m-d H:i:s'),
-            'updated_at'   => date('Y-m-d H:i:s'),
+            'created_at'   => nowIST(),
+            'updated_at'   => nowIST(),
         ]);
 
         foreach ($values as $fieldId => $value) {
@@ -265,7 +265,7 @@ class DynamicForm
     {
         $this->db->update('form_submissions', [
             'status'     => 'updated',
-            'updated_at' => date('Y-m-d H:i:s'),
+            'updated_at' => nowIST(),
         ], 'id = ?', [$submissionId]);
 
         foreach ($values as $fieldId => $value) {
