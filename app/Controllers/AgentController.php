@@ -475,30 +475,35 @@ class AgentController extends BaseController
                 }
             }
 
-            // Case 3: Generic field update
+            // Case 3: Generic field update (actual_salary, etc.)
             if ($field) {
-                $allowedFields = ['actual_salary', 'salary', 'existing_la', 'remark'];
-                if (in_array($field, $allowedFields) && in_array($field, $existingCols)) {
-                    $this->db->update('leads', [
-                        $field => $value ?: null,
-                        'updated_at' => date('Y-m-d H:i:s'),
-                    ], 'id = ?', [$leadId]);
-                    logActivity($user['id'], 'field_updated', 'lead', $leadId, null, json_encode([$field => $value]));
-                    $this->json(['success' => true, 'message' => ucfirst(str_replace('_', ' ', $field)) . ' updated.']);
-                    return;
-                }
-                // Auto-create column
-                try {
-                    $this->db->query("ALTER TABLE `leads` ADD COLUMN `{$field}` VARCHAR(100) DEFAULT NULL");
-                    $existingCols[] = $field;
-                    $this->db->update('leads', [
-                        $field => $value ?: null,
-                        'updated_at' => date('Y-m-d H:i:s'),
-                    ], 'id = ?', [$leadId]);
-                    $this->json(['success' => true, 'message' => ucfirst(str_replace('_', ' ', $field)) . ' updated.']);
-                    return;
-                } catch (\Throwable $e) {
-                    error_log("Failed to create column {$field}: " . $e->getMessage());
+                $allowedFields = ['actual_salary', 'salary', 'existing_la', 'remark', 'customer_name', 'mobile_number', 'location', 'state', 'bank_name', 'data_type', 'response_date'];
+                if (in_array($field, $allowedFields)) {
+                    // Ensure column exists first
+                    $this->ensureColumns();
+                    $allCols = $this->getExistingColumns('leads');
+                    if (!in_array($field, $allCols)) {
+                        try {
+                            $this->db->query("ALTER TABLE `leads` ADD COLUMN `{$field}` VARCHAR(255) DEFAULT NULL");
+                        } catch (\Throwable $e) {
+                            error_log("Failed to create column {$field}: " . $e->getMessage());
+                            $this->json(['error' => 'Could not create column: ' . $field], 500);
+                            return;
+                        }
+                    }
+                    try {
+                        $this->db->update('leads', [
+                            $field => $value ?: null,
+                            'updated_at' => date('Y-m-d H:i:s'),
+                        ], 'id = ?', [$leadId]);
+                        logActivity($user['id'], 'field_updated', 'lead', $leadId, null, json_encode([$field => $value]));
+                        $this->json(['success' => true, 'message' => ucfirst(str_replace('_', ' ', $field)) . ' updated.']);
+                        return;
+                    } catch (\Throwable $e) {
+                        error_log("Update field {$field} failed: " . $e->getMessage());
+                        $this->json(['error' => 'Update failed: ' . $e->getMessage()], 500);
+                        return;
+                    }
                 }
             }
 

@@ -74,6 +74,9 @@ class DynamicForm
         $form = $this->findById($formId);
         if (!$form) return null;
 
+        // Ensure is_hidden column exists
+        $this->ensureHiddenColumn();
+
         $form['sections'] = $this->db->fetchAll(
             "SELECT * FROM form_sections WHERE form_id = ? ORDER BY display_order",
             [$formId]
@@ -108,6 +111,32 @@ class DynamicForm
     {
         $data['created_at'] = date('Y-m-d H:i:s');
         return $this->db->insert('form_sections', $data);
+    }
+
+    /**
+     * Ensure is_hidden column exists in form_fields
+     */
+    private function ensureHiddenColumn(): void
+    {
+        static $done = false;
+        if ($done) return;
+        try {
+            $colCheck = $this->db->fetchOne(
+                "SELECT COUNT(*) as cnt FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'form_fields' AND COLUMN_NAME = 'is_hidden'"
+            );
+            if ($colCheck && (int)$colCheck['cnt'] === 0) {
+                $this->db->query("ALTER TABLE `form_fields` ADD COLUMN `is_hidden` TINYINT(1) DEFAULT 0");
+            }
+            $colCheck2 = $this->db->fetchOne(
+                "SELECT COUNT(*) as cnt FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'form_fields' AND COLUMN_NAME = 'field_type'"
+            );
+            if ($colCheck2 && (int)$colCheck2['cnt'] === 0) {
+                $this->db->query("ALTER TABLE `form_fields` ADD COLUMN `field_type` VARCHAR(50) DEFAULT 'field'");
+            }
+        } catch (\Throwable $e) {
+            // Column might already exist or permissions issue
+        }
+        $done = true;
     }
 
     /**
