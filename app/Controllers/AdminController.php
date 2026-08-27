@@ -1087,7 +1087,7 @@ class AdminController extends BaseController
         $page = max(1, (int)($_GET['page'] ?? 1));
         $perPage = 25;
 
-        $where = "l.workflow_stage IN ('POST_LOGIN', 'UNDERWRITING')";
+        $where = "l.workflow_stage = 'POST_LOGIN'";
         $params = [];
 
         if ($search) {
@@ -1219,7 +1219,7 @@ class AdminController extends BaseController
         $page = max(1, (int)($_GET['page'] ?? 1));
         $perPage = 25;
 
-        $where = "l.workflow_stage IN ('UNDERWRITING_APPROVED', 'DISPATCH')";
+        $where = "l.workflow_stage = 'UNDERWRITING_APPROVED'";
         $params = [];
 
         if ($search) {
