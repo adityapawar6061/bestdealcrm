@@ -300,7 +300,7 @@ class FormBuilderController extends BaseController
     public function hiddenFields(int $formId): void
     {
         $this->ensureFieldColumns();
-        $form = $this->formModel->getFullForm($formId);
+        $form = $this->formModel->getFullForm($formId, true);
         $hiddenFields = [];
         if ($form) {
             foreach ($form['sections'] as $section) {
