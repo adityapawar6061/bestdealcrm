@@ -20,9 +20,13 @@ function slugify(string $text): string
  */
 function formatDate(string $date, string $format = 'd M Y, h:i A'): string
 {
-    if (empty($date)) return '';
-    $dt = new \DateTime($date);
-    return $dt->format($format);
+    if (empty($date) || $date === '0000-00-00 00:00:00' || $date === '0000-00-00') return '';
+    try {
+        $dt = new \DateTime($date, new \DateTimeZone('Asia/Kolkata'));
+        return $dt->format($format);
+    } catch (\Exception $e) {
+        return $date;
+    }
 }
 
 /**

@@ -9,6 +9,9 @@ ini_set('display_errors', '0');
 ini_set('log_errors', '1');
 ini_set('error_log', dirname(__DIR__) . '/storage/logs/php_error.log');
 
+// Set timezone to IST (Asia/Kolkata, UTC+5:30)
+date_default_timezone_set('Asia/Kolkata');
+
 // PHP 7.x polyfills
 if (!function_exists('str_contains')) {
     function str_contains($haystack, $needle) {

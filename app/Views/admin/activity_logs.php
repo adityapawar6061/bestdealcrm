@@ -34,7 +34,7 @@
                             <?php endif; ?>
                         </td>
                         <td><small class="text-muted"><?= htmlspecialchars($log['ip_address'] ?? '') ?></small></td>
-                        <td><small class="text-muted"><?= formatDate($log['created_at'], 'd M, h:i A') ?></small></td>
+                        <td><small class="text-muted"><?= formatDate($log['created_at'], 'd M Y, h:i:s A (IST)') ?></small></td>
                     </tr>
                     <?php endforeach; ?>
                 <?php endif; ?>

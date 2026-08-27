@@ -343,6 +343,52 @@ class FormBuilderController extends BaseController
     }
 
     /**
+     * Delete a section and all its fields (password protected)
+     */
+    public function deleteSection(): void
+    {
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            $this->json(['error' => 'Invalid request.'], 405);
+            return;
+        }
+
+        $password = $_POST['password'] ?? '';
+        if ($password !== '12345678') {
+            $this->json(['error' => 'Incorrect password.'], 403);
+            return;
+        }
+
+        $sectionId = (int)($_POST['section_id'] ?? 0);
+        if (!$sectionId) {
+            $this->json(['error' => 'Invalid section ID.'], 400);
+            return;
+        }
+
+        try {
+            // Get all field IDs in this section
+            $fields = $this->db->fetchAll(
+                "SELECT id FROM form_fields WHERE section_id = ?",
+                [$sectionId]
+            );
+            $fieldIds = array_column($fields, 'id');
+
+            if (!empty($fieldIds)) {
+                $placeholders = implode(',', array_fill(0, count($fieldIds), '?'));
+                $this->db->delete('form_field_options', "field_id IN ({$placeholders})", $fieldIds);
+                $this->db->query("DELETE FROM form_submission_values WHERE field_id IN ({$placeholders})", $fieldIds);
+            }
+            $this->db->delete('form_fields', 'section_id = ?', [$sectionId]);
+            $this->db->delete('form_sections', 'id = ?', [$sectionId]);
+
+            logActivity(currentUser()['id'], 'section_deleted', 'form_section', $sectionId);
+            $this->json(['success' => true, 'message' => 'Section and all its fields deleted permanently.']);
+        } catch (\Throwable $e) {
+            error_log('deleteSection error: ' . $e->getMessage());
+            $this->json(['error' => 'Delete failed: ' . $e->getMessage()], 500);
+        }
+    }
+
+    /**
      * Delete form with password confirmation
      */
     public function deleteWithPassword(): void

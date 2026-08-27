@@ -54,6 +54,9 @@
             <h6 class="fw-bold text-primary mb-0">
                 <i class="bi bi-card-list me-1"></i> <?= htmlspecialchars($section['name']) ?>
             </h6>
+            <button class="btn btn-sm btn-outline-danger" onclick="deleteSection(<?= $section['id'] ?>, '<?= htmlspecialchars(addslashes($section['name'])) ?>')" title="Delete this section and all its fields">
+                <i class="bi bi-trash me-1"></i> Delete Section
+            </button>
         </div>
 
         <!-- Existing Fields -->
@@ -131,16 +134,21 @@
 
         <!-- Add Field Form -->
         <div class="bg-light rounded p-3">
-            <h6 class="small fw-bold text-muted mb-2"><i class="bi bi-plus-circle me-1"></i> Add New Field / Heading</h6>
-            <div class="row g-2">
+            <h6 class="small fw-bold text-muted mb-2"><i class="bi bi-plus-circle me-1"></i> Add New Item</h6>
+            <div class="row g-2 align-items-end">
                 <input type="hidden" name="section_id" value="<?= $section['id'] ?>">
+                <!-- Dropdown to select: New Field, Heading, or Sub-heading -->
                 <div class="col-md-2">
-                    <input type="text" name="field_name" class="form-control form-control-sm" placeholder="field_name" pattern="[a-zA-Z0-9_]+">
+                    <label class="form-label small fw-semibold mb-1">Type</label>
+                    <select name="item_type" class="form-select form-select-sm" id="itemType_<?= $section['id'] ?>" onchange="toggleAddFieldType(<?= $section['id'] ?>)">
+                        <option value="field">📝 New Field</option>
+                        <option value="heading">📌 Heading</option>
+                        <option value="subheading">➖ Sub-heading</option>
+                    </select>
                 </div>
-                <div class="col-md-2">
-                    <input type="text" name="label" class="form-control form-control-sm" placeholder="Label" required>
-                </div>
-                <div class="col-md-2">
+                <!-- Field type (only for "New Field") -->
+                <div class="col-md-2 fieldTypeCol" id="fieldTypeCol_<?= $section['id'] ?>">
+                    <label class="form-label small fw-semibold mb-1">Field Type</label>
                     <select name="type" class="form-select form-select-sm" onchange="toggleOptionsRow(this); toggleFieldRequired(this)">
                         <option value="text">Text</option>
                         <option value="textarea">Textarea</option>
@@ -157,22 +165,36 @@
                         <option value="image">Image Upload</option>
                         <option value="url">URL</option>
                         <option value="readonly">Read-only</option>
-                        <option value="heading" class="bg-info text-white">── Heading ──</option>
-                        <option value="subheading" class="bg-secondary text-white">── Sub-heading ──</option>
                     </select>
                 </div>
-                <div class="col-md-2">
-                    <input type="text" name="placeholder" class="form-control form-control-sm" placeholder="Placeholder">
+                <!-- Field name -->
+                <div class="col-md-2" id="fieldNameCol_<?= $section['id'] ?>">
+                    <label class="form-label small fw-semibold mb-1">Field Name</label>
+                    <input type="text" name="field_name" class="form-control form-control-sm" placeholder="field_name" pattern="[a-zA-Z0-9_]+">
                 </div>
-                <div class="col-md-1 req-col">
-                    <div class="form-check mt-1">
+                <!-- Label -->
+                <div class="col-md-2">
+                    <label class="form-label small fw-semibold mb-1">Label</label>
+                    <input type="text" name="label" class="form-control form-control-sm" placeholder="Label" required>
+                </div>
+                <!-- Placeholder (only for fields) -->
+                <div class="col-md-1 fieldTypeCol" id="placeholderCol_<?= $section['id'] ?>">
+                    <label class="form-label small fw-semibold mb-1">Placeholder</label>
+                    <input type="text" name="placeholder" class="form-control form-control-sm" placeholder="Ph.">
+                </div>
+                <!-- Required (only for fields) -->
+                <div class="col-md-1 req-col fieldTypeCol" id="reqCol_<?= $section['id'] ?>">
+                    <label class="form-label small fw-semibold mb-1">&nbsp;</label>
+                    <div class="form-check">
                         <input class="form-check-input" type="checkbox" name="required" value="1" id="req_<?= $section['id'] ?>">
                         <label class="form-check-label small" for="req_<?= $section['id'] ?>">Req</label>
                     </div>
                 </div>
+                <!-- Add button -->
                 <div class="col-md-1">
+                    <label class="form-label small fw-semibold mb-1">&nbsp;</label>
                     <button type="button" class="btn btn-sm btn-success w-100" onclick="addField(this, <?= $section['id'] ?>)">
-                        <i class="bi bi-plus"></i>
+                        <i class="bi bi-plus"></i> Add
                     </button>
                 </div>
             </div>
@@ -366,6 +388,47 @@
 <script>
 var currentFieldId = null;
 
+// Toggle field-type-specific columns based on item type dropdown
+function toggleAddFieldType(sectionId) {
+    var sel = document.getElementById('itemType_' + sectionId);
+    var val = sel.value;
+    var fieldTypeCol = document.getElementById('fieldTypeCol_' + sectionId);
+    var fieldNameCol = document.getElementById('fieldNameCol_' + sectionId);
+    var placeholderCol = document.getElementById('placeholderCol_' + sectionId);
+    var reqCol = document.getElementById('reqCol_' + sectionId);
+    if (val === 'field') {
+        fieldTypeCol.style.display = '';
+        fieldNameCol.style.display = '';
+        placeholderCol.style.display = '';
+        reqCol.style.display = '';
+    } else {
+        fieldTypeCol.style.display = 'none';
+        fieldNameCol.style.display = 'none';
+        placeholderCol.style.display = 'none';
+        reqCol.style.display = 'none';
+    }
+}
+
+// Delete section with password confirmation
+function deleteSection(sectionId, sectionName) {
+    if (!confirm('Delete section "' + sectionName + '" and ALL its fields? This cannot be undone.')) return;
+    var password = prompt('Enter password to delete this section:');
+    if (!password) return;
+    var formData = new FormData();
+    formData.append('section_id', sectionId);
+    formData.append('password', password);
+    ajaxPost('/bestdealcrm/admin/form-builder/delete-section', formData).then(function(result) {
+        if (result && result.success) {
+            showToast(result.message, 'success');
+            location.reload();
+        } else {
+            showToast(result.error || 'Delete failed.', 'danger');
+        }
+    }).catch(function(err) {
+        showToast('Server error: ' + err.message, 'danger');
+    });
+}
+
 function toggleOptionsRow(select) {
     var sectionId = select.closest('.row').querySelector('input[name="section_id"]').value;
     var row = document.getElementById('options-row-' + sectionId);
@@ -405,20 +468,37 @@ async function addSection() {
 }
 
 async function addField(btn, sectionId) {
-    var row = btn.closest('.row');
+    var row = btn.closest('.bg-light');
     var formData = new FormData();
     formData.append('section_id', sectionId);
 
-    row.querySelectorAll('input, select').forEach(function(el) {
-        if (el.type === 'checkbox') {
-            if (el.checked) formData.append(el.name, el.value);
-        } else if (el.name && el.name !== 'options_input') {
-            formData.append(el.name, el.value);
-        }
-    });
+    // Get item type from the new dropdown
+    var itemTypeSelect = document.getElementById('itemType_' + sectionId);
+    var itemType = itemTypeSelect ? itemTypeSelect.value : 'field';
 
-    var typeSelect = row.querySelector('select[name="type"]');
-    if (['dropdown', 'multi-select', 'radio'].includes(typeSelect.value)) {
+    // If heading or subheading, set type to that and use label as field_name
+    if (itemType === 'heading' || itemType === 'subheading') {
+        var labelInput = row.querySelector('input[name="label"]');
+        formData.append('type', itemType);
+        formData.append('field_type', itemType);
+        formData.append('label', labelInput.value.trim());
+        if (!formData.get('field_name')) {
+            formData.append('field_name', 'heading_' + Math.random().toString(36).substr(2, 8));
+        }
+    } else {
+        // Normal field - collect all inputs
+        row.querySelectorAll('input, select').forEach(function(el) {
+            if (el.type === 'checkbox') {
+                if (el.checked) formData.append(el.name, el.value);
+            } else if (el.name && el.name !== 'options_input' && el.name !== 'item_type') {
+                formData.append(el.name, el.value);
+            }
+        });
+    }
+
+    // Add options for dropdown/radio
+    var typeVal = formData.get('type') || '';
+    if (['dropdown', 'multi-select', 'radio'].includes(typeVal)) {
         var optionsRow = document.getElementById('options-row-' + sectionId);
         var optionsInput = optionsRow.querySelector('input[name="options_input"]');
         if (optionsInput && optionsInput.value.trim()) {
@@ -427,6 +507,11 @@ async function addField(btn, sectionId) {
                 formData.append('options[]', opt);
             });
         }
+    }
+
+    if (!formData.get('label')) {
+        showToast('Label is required.', 'warning');
+        return;
     }
 
     var result = await ajaxPost('/bestdealcrm/admin/form-builder/add-field', formData);
