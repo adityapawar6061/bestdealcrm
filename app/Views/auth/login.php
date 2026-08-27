@@ -51,6 +51,8 @@
         }
         .btn-login:hover { background: #2563eb; }
         .form-label { font-weight: 500; font-size: 0.875rem; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(-5px); } to { opacity: 1; transform: translateY(0); } }
+        .alert { animation: fadeIn 0.3s ease; }
     </style>
 </head>
 <body>
@@ -61,20 +63,21 @@
         </div>
         <div class="login-body">
             <?php 
-            // Flash messages
-            $error = getFlash('error'); 
-            $success = getFlash('success'); 
+            // Flash messages — read directly from session (controller may have consumed them)
+            $loginError = $_SESSION['flash']['error'] ?? null;
+            $loginSuccess = $_SESSION['flash']['success'] ?? null;
+            unset($_SESSION['flash']['error'], $_SESSION['flash']['success']);
             ?>
             
-            <?php if ($error): ?>
-                <div class="alert alert-danger py-2 mb-3">
-                    <small><?= htmlspecialchars($error) ?></small>
+            <?php if (!empty($loginError)): ?>
+                <div class="alert alert-danger py-2 mb-3" style="animation: fadeIn 0.3s ease">
+                    <small><i class="bi bi-exclamation-circle me-1"></i><?= htmlspecialchars($loginError) ?></small>
                 </div>
             <?php endif; ?>
             
-            <?php if ($success): ?>
-                <div class="alert alert-success py-2 mb-3">
-                    <small><?= htmlspecialchars($success) ?></small>
+            <?php if (!empty($loginSuccess)): ?>
+                <div class="alert alert-success py-2 mb-3" style="animation: fadeIn 0.3s ease">
+                    <small><i class="bi bi-check-circle me-1"></i><?= htmlspecialchars($loginSuccess) ?></small>
                 </div>
             <?php endif; ?>
             
@@ -97,7 +100,7 @@
             </form>
             
             <div class="text-center mt-3">
-                <small class="text-muted">Default: admin / admin123</small>
+                <small class="text-muted">Contact your admin for login credentials</small>
             </div>
         </div>
     </div>

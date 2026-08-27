@@ -12,9 +12,6 @@ class AuthController extends BaseController
             $this->redirectBasedOnRole();
         }
         
-        $error = getFlash('error');
-        $success = getFlash('success');
-        
         require VIEWS_PATH . '/auth/login.php';
     }
 
@@ -59,11 +56,24 @@ class AuthController extends BaseController
                 [$username, $username]
             );
 
-            if (!$user || !password_verify($password, $user['password_hash'])) {
+            if (!$user) {
                 $_SESSION['login_attempts'] = $attempts + 1;
                 $_SESSION['last_login_attempt'] = time();
-                
-                setFlash('error', 'Invalid credentials.');
+                setFlash('error', 'User not found. Check your username or email.');
+                $this->redirect('/login');
+                return;
+            }
+
+            if (!password_verify($password, $user['password_hash'])) {
+                $_SESSION['login_attempts'] = $attempts + 1;
+                $_SESSION['last_login_attempt'] = time();
+                setFlash('error', 'Incorrect password. Please try again.');
+                $this->redirect('/login');
+                return;
+            }
+
+            if ($user['status'] !== 'active') {
+                setFlash('error', 'Your account has been deactivated. Contact admin.');
                 $this->redirect('/login');
                 return;
             }
