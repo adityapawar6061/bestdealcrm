@@ -21,9 +21,9 @@
         </div>
         <div class="col-md-2">
             <select name="status" class="form-select form-select-sm">
-                <option value="">All Status</option>
-                <option value="active" <?= ($filters['status'] ?? '') === 'active' ? 'selected' : '' ?>>Active</option>
-                <option value="inactive" <?= ($filters['status'] ?? '') === 'inactive' ? 'selected' : '' ?>>Inactive</option>
+                <option value="active" <?= ($filters['status'] ?? '') === 'active' ? 'selected' : '' ?>>Active Only</option>
+                <option value="inactive" <?= ($filters['status'] ?? '') === 'inactive' ? 'selected' : '' ?>>Deleted (Inactive)</option>
+                <option value="all" <?= ($filters['status'] ?? '') === 'all' ? 'selected' : '' ?>>All Users</option>
             </select>
         </div>
         <div class="col-md-2">

@@ -77,6 +77,15 @@ class AdminController extends BaseController
         ];
         $page = (int)($_GET['page'] ?? 1);
 
+        // Hide deleted employees (EX_EMPLOYEE) by default
+        if (empty($filters['status']) || $filters['status'] === 'all') {
+            if (empty($filters['status'])) {
+                $filters['status'] = 'active';
+            } else {
+                unset($filters['status']); // Show all
+            }
+        }
+
         $users = $this->userModel->getAll($filters, $page);
         $roles = $this->db->fetchAll("SELECT * FROM roles ORDER BY name");
         $teamLeaders = $this->userModel->getTeamLeaders();
