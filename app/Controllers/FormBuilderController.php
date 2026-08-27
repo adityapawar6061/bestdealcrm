@@ -55,7 +55,6 @@ class FormBuilderController extends BaseController
             'workflow_stage'  => $data['workflow_stage'] ?? '',
         ]);
 
-        // Set role access
         if (!empty($_POST['allowed_roles'])) {
             foreach ($_POST['allowed_roles'] as $roleId) {
                 $this->db->insert('form_role_access', [
@@ -79,8 +78,9 @@ class FormBuilderController extends BaseController
             return;
         }
 
-        // Count hidden fields
+        // Count hidden fields AND fetch their data directly (no AJAX needed)
         $hiddenCount = 0;
+        $hiddenFieldsData = [];
         foreach ($form['sections'] as $section) {
             $allFields = $this->db->fetchAll(
                 "SELECT is_hidden FROM form_fields WHERE section_id = ?",
@@ -88,6 +88,31 @@ class FormBuilderController extends BaseController
             );
             foreach ($allFields as $f) {
                 if (!empty($f['is_hidden'])) $hiddenCount++;
+            }
+        }
+
+        // Fetch hidden field details directly (same query that works in debug page)
+        if ($hiddenCount > 0) {
+            try {
+                $hiddenRows = $this->db->fetchAll(
+                    "SELECT f.id, f.field_name, f.label, f.type, s.name as section_name
+                     FROM form_fields f
+                     JOIN form_sections s ON f.section_id = s.id
+                     WHERE s.form_id = ? AND f.is_hidden = 1
+                     ORDER BY s.display_order, f.display_order",
+                    [$id]
+                );
+                foreach ($hiddenRows as $row) {
+                    $hiddenFieldsData[] = [
+                        'id' => (int)$row['id'],
+                        'section' => $row['section_name'],
+                        'field_name' => $row['field_name'],
+                        'label' => $row['label'],
+                        'type' => $row['type'],
+                    ];
+                }
+            } catch (\Throwable $e) {
+                error_log('edit hiddenFields error: ' . $e->getMessage());
             }
         }
 
@@ -104,6 +129,7 @@ class FormBuilderController extends BaseController
             'allRoles'        => $allRoles,
             'assignedRoleIds' => $assignedRoleIds,
             'hiddenFieldCount' => $hiddenCount,
+            'hiddenFieldsData' => $hiddenFieldsData,
         ]);
     }
 
@@ -123,7 +149,6 @@ class FormBuilderController extends BaseController
             'status'         => $data['status'] ?? 'active',
         ]);
 
-        // Update role access
         $this->db->delete('form_role_access', 'form_id = ?', [$id]);
         if (!empty($_POST['allowed_roles'])) {
             foreach ($_POST['allowed_roles'] as $roleId) {
@@ -139,9 +164,6 @@ class FormBuilderController extends BaseController
         $this->json(['success' => true, 'message' => 'Form updated.']);
     }
 
-    /**
-     * Add a section to form via AJAX
-     */
     public function addSection(): void
     {
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
@@ -171,9 +193,6 @@ class FormBuilderController extends BaseController
         $this->json(['success' => true, 'message' => 'Section added.', 'id' => $id]);
     }
 
-    /**
-     * Add a field to section via AJAX
-     */
     public function addField(): void
     {
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
@@ -201,11 +220,9 @@ class FormBuilderController extends BaseController
         );
         $fieldData['display_order'] = $maxOrder['next_order'];
 
-        // Handle heading/subheading types
         $fieldType = $_POST['field_type'] ?? 'field';
         if (in_array($fieldData['type'], ['heading', 'subheading'])) {
             $fieldType = $fieldData['type'];
-            // Generate field_name for headings if empty
             if (empty($fieldData['field_name'])) {
                 $fieldData['field_name'] = 'heading_' . substr(bin2hex(random_bytes(4)), 0, 8);
             }
@@ -214,7 +231,6 @@ class FormBuilderController extends BaseController
 
         $id = $this->formModel->createField($fieldData);
 
-        // Save options for dropdown/multi-select/radio
         if (in_array($fieldData['type'], ['dropdown', 'multi-select', 'radio']) && !empty($_POST['options'])) {
             $this->formModel->saveFieldOptions($id, $_POST['options']);
         }
@@ -222,9 +238,6 @@ class FormBuilderController extends BaseController
         $this->json(['success' => true, 'message' => 'Field added.', 'id' => $id]);
     }
 
-    /**
-     * Update a field via AJAX
-     */
     public function updateField(int $id): void
     {
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
@@ -253,22 +266,15 @@ class FormBuilderController extends BaseController
         }
     }
 
-    /**
-     * Soft delete a field (hide it, keep data)
-     */
     public function deleteField(int $id): void
     {
         if ($_SERVER['REQUEST_METHOD'] === 'POST' || $_SERVER['REQUEST_METHOD'] === 'DELETE') {
-            // Ensure is_hidden column exists
             $this->ensureFieldColumns();
             $this->db->update('form_fields', ['is_hidden' => 1], 'id = ?', [$id]);
             $this->json(['success' => true, 'message' => 'Field hidden (soft deleted).']);
         }
     }
 
-    /**
-     * Hard delete - permanently remove a soft-deleted field
-     */
     public function hardDeleteField(int $id): void
     {
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -282,9 +288,6 @@ class FormBuilderController extends BaseController
         }
     }
 
-    /**
-     * Restore a soft-deleted field
-     */
     public function restoreField(int $id): void
     {
         if ($_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -294,14 +297,10 @@ class FormBuilderController extends BaseController
         }
     }
 
-    /**
-     * Get hidden (soft-deleted) fields for hard delete
-     */
     public function hiddenFields(int $formId): void
     {
         $this->ensureFieldColumns();
 
-        // Direct query - bypass getFullForm to avoid static cache issues
         $hiddenFields = [];
         try {
             $rows = $this->db->fetchAll(
@@ -327,9 +326,6 @@ class FormBuilderController extends BaseController
         $this->json(['success' => true, 'fields' => $hiddenFields]);
     }
 
-    /**
-     * Ensure is_hidden column exists in form_fields
-     */
     private function ensureFieldColumns(): void
     {
         try {
@@ -340,18 +336,14 @@ class FormBuilderController extends BaseController
             if (!in_array('is_hidden', $colNames)) {
                 $this->db->query("ALTER TABLE `form_fields` ADD COLUMN `is_hidden` TINYINT(1) DEFAULT 0");
             }
-            // Also ensure field_type column for heading/subheading
             if (!in_array('field_type', $colNames)) {
                 $this->db->query("ALTER TABLE `form_fields` ADD COLUMN `field_type` VARCHAR(50) DEFAULT 'field'");
             }
         } catch (\Throwable $e) {
-            // Ignore - columns may already exist
+            // Ignore
         }
     }
 
-    /**
-     * Delete a section and all its fields (password protected)
-     */
     public function deleteSection(): void
     {
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
@@ -372,7 +364,6 @@ class FormBuilderController extends BaseController
         }
 
         try {
-            // Get all field IDs in this section
             $fields = $this->db->fetchAll(
                 "SELECT id FROM form_fields WHERE section_id = ?",
                 [$sectionId]
@@ -395,9 +386,6 @@ class FormBuilderController extends BaseController
         }
     }
 
-    /**
-     * Delete form with password confirmation
-     */
     public function deleteWithPassword(): void
     {
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
@@ -424,9 +412,6 @@ class FormBuilderController extends BaseController
         $this->json(['success' => true, 'message' => 'Form deleted permanently.']);
     }
 
-    /**
-     * Get field options via AJAX
-     */
     public function getFieldOptions(int $id): void
     {
         $options = $this->db->fetchAll(
@@ -436,9 +421,6 @@ class FormBuilderController extends BaseController
         $this->json(['success' => true, 'options' => $options]);
     }
 
-    /**
-     * Save field options via AJAX
-     */
     public function saveFieldOptions(int $id): void
     {
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {

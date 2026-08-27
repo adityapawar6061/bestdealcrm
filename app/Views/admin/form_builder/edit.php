@@ -532,24 +532,24 @@ function softDeleteField(fieldId) {
     });
 }
 
-// Show hidden fields
-async function showHiddenFields(formId) {
-    var modal = new bootstrap.Modal(document.getElementById('hiddenFieldsModal'));
-    document.getElementById('hiddenFieldsList').innerHTML = '<p class="text-muted">Loading...</p>';
-    modal.show();
+// Hidden fields data embedded from server (no AJAX needed)
+var hiddenFieldsData = <?= json_encode($hiddenFieldsData ?? []) ?>;
 
-    var result = await ajaxGet('/bestdealcrm/admin/form-builder/' + formId + '/hidden-fields');
+// Show hidden fields
+function showHiddenFields(formId) {
+    var modal = new bootstrap.Modal(document.getElementById('hiddenFieldsModal'));
     var container = document.getElementById('hiddenFieldsList');
 
-    if (!result || !result.success || result.fields.length === 0) {
+    if (!hiddenFieldsData || hiddenFieldsData.length === 0) {
         container.innerHTML = '<div class="text-center py-3"><i class="bi bi-check-circle text-success me-2"></i>No hidden fields.</div>';
+        modal.show();
         return;
     }
 
     var html = '<table class="table table-sm table-bordered"><thead class="table-light"><tr>';
     html += '<th>Section</th><th>Field Name</th><th>Label</th><th>Type</th><th>Actions</th>';
     html += '</tr></thead><tbody>';
-    result.fields.forEach(function(f) {
+    hiddenFieldsData.forEach(function(f) {
         html += '<tr>';
         html += '<td>' + escapeHtml(f.section) + '</td>';
         html += '<td><code>' + escapeHtml(f.field_name) + '</code></td>';
@@ -562,6 +562,7 @@ async function showHiddenFields(formId) {
     });
     html += '</tbody></table>';
     container.innerHTML = html;
+    modal.show();
 }
 
 async function restoreField(fieldId) {
