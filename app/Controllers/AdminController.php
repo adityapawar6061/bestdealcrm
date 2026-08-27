@@ -1196,9 +1196,8 @@ class AdminController extends BaseController
         // Transition workflow
         $this->workflowModel->transition($leadId, $currentStage, $newStage, $user['id'], $user['role_name'], $remark, 'admin_review_3');
 
-        // Update lead with remark and assignment
+        // Update lead — assign agent and stage
         $updateData = [
-            'admin_approval3_remark' => $remark,
             'updated_at' => date('Y-m-d H:i:s'),
         ];
         if ($action === 'approve_to_underwriting' && $assignedTo) {
@@ -1329,9 +1328,8 @@ class AdminController extends BaseController
         // Transition workflow
         $this->workflowModel->transition($leadId, $currentStage, $newStage, $user['id'], $user['role_name'], $remark, 'admin_review_4');
 
-        // Update lead
+        // Update lead — assign agent and stage
         $updateData = [
-            'admin_approval4_remark' => $remark,
             'updated_at' => date('Y-m-d H:i:s'),
         ];
         if ($action === 'approve_to_dispatch' && $assignedTo) {
