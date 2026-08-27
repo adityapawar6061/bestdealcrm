@@ -170,6 +170,16 @@ $router->middleware(['AuthMiddleware'], function ($router) {
             $router->get('/notifications', 'AdminController', 'notifications');
             $router->post('/notifications/read', 'AdminController', 'readNotification');
             
+            // Reports & Export
+            $router->get('/reports', 'ReportController', 'index');
+            $router->get('/reports/create', 'ReportController', 'create');
+            $router->post('/reports/store', 'ReportController', 'store');
+            $router->get('/reports/{id}/edit', 'ReportController', 'edit');
+            $router->post('/reports/update', 'ReportController', 'update');
+            $router->post('/reports/delete', 'ReportController', 'delete');
+            $router->get('/reports/{id}/generate', 'ReportController', 'generate');
+            $router->get('/reports/{id}/export', 'ReportController', 'export');
+
             // Activity Logs
             $router->get('/activity-logs', 'AdminController', 'activityLogs');
             

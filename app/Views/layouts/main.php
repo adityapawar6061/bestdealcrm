@@ -186,6 +186,9 @@
                 </a>
                 
                 <div class="nav-section">System</div>
+                <a href="/bestdealcrm/admin/reports" class="nav-link <?= str_contains($currentUri, '/admin/reports') ? 'active' : '' ?>">
+                    <i class="bi bi-file-earmark-bar-graph"></i> Reports
+                </a>
                 <a href="/bestdealcrm/admin/notifications" class="nav-link <?= str_contains($currentUri, '/notifications') ? 'active' : '' ?>">
                     <i class="bi bi-bell"></i> Notifications
                 </a>
