@@ -130,7 +130,6 @@ class AgentController extends BaseController
         // Set lead data
         $data['workflow_stage'] = 'LEAD_ASSIGNED';
         $data['assigned_to'] = $user['id'];
-        $data['assigned_at'] = date('Y-m-d H:i:s');
         $data['created_at'] = date('Y-m-d H:i:s');
 
         $leadId = $this->leadModel->create($data);
