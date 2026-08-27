@@ -56,7 +56,7 @@
                 <?php else: ?>
                     <?php foreach ($entries as $e): ?>
                         <tr>
-                            <td><small class="text-muted"><?= date('d M Y, h:i A', strtotime($e['created_at'])) ?></small></td>
+                            <td><small class="text-muted"><?= formatDate($e['created_at'], 'd M Y, h:i A (IST)') ?></small></td>
                             <td><span class="badge bg-info text-dark"><?= htmlspecialchars($e['user_name'] ?? 'N/A') ?></span></td>
                             <td><?= htmlspecialchars($e['mobile_no']) ?></td>
                             <td><strong><?= htmlspecialchars($e['customer_name']) ?></strong></td>

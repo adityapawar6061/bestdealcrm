@@ -30,7 +30,7 @@
                         <td><code><?= htmlspecialchars($form['code']) ?></code></td>
                         <td><small><?= humanStatus($form['workflow_stage'] ?? '') ?></small></td>
                         <td><span class="badge bg-<?= $form['status'] === 'active' ? 'success' : 'secondary' ?>"><?= ucfirst($form['status']) ?></span></td>
-                        <td><small class="text-muted"><?= formatDate($form['created_at'], 'd M Y') ?></small></td>
+                        <td><small class="text-muted"><?= formatDate($form['created_at'], 'd M Y (IST)') ?></small></td>
                         <td>
                             <a href="/bestdealcrm/admin/form-builder/<?= $form['id'] ?>/edit" class="btn btn-sm btn-outline-primary">
                                 <i class="bi bi-pencil"></i> Edit

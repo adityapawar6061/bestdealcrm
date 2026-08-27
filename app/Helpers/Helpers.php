@@ -18,14 +18,16 @@ function slugify(string $text): string
 /**
  * Format date for display
  */
-function formatDate(string $date, string $format = 'd M Y, h:i A'): string
+function formatDate(string $date, string $format = 'd M Y, h:i A (IST)'): string
 {
     if (empty($date) || $date === '0000-00-00 00:00:00' || $date === '0000-00-00') return '';
     try {
-        $dt = new \DateTime($date, new \DateTimeZone('Asia/Kolkata'));
+        // If date string has no timezone info, interpret as server-local (IST since we set it)
+        $dt = new \DateTime($date);
+        $dt->setTimezone(new \DateTimeZone('Asia/Kolkata'));
         return $dt->format($format);
     } catch (\Exception $e) {
-        return $date;
+        return $date . ' (IST)';
     }
 }
 

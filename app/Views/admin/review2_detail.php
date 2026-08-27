@@ -41,7 +41,7 @@
                 <div>
                     <strong><?= htmlspecialchars($event['performed_by_name'] ?? 'System') ?></strong>
                     <span class="text-muted">— <?= htmlspecialchars(str_replace('_', ' ', $event['action'] ?? $event['new_stage'])) ?></span>
-                    <div class="text-muted" style="font-size:0.75rem"><?= formatDate($event['created_at'], 'd M, h:i A') ?></div>
+                    <div class="text-muted" style="font-size:0.75rem"><?= formatDate($event['created_at'], 'd M, h:i A (IST)') ?></div>
                 </div>
             </div>
             <?php endforeach; ?>

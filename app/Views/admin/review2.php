@@ -28,7 +28,7 @@
                         <td><?= htmlspecialchars($lead['mobile_number'] ?? '-') ?></td>
                         <td><small><?= htmlspecialchars($lead['bank_name'] ?? '-') ?></small></td>
                         <td><small><?= htmlspecialchars($lead['assigned_to_name'] ?? '-') ?></small></td>
-                        <td><small class="text-muted"><?= formatDate($lead['updated_at'], 'd M, h:i A') ?></small></td>
+                        <td><small class="text-muted"><?= formatDate($lead['updated_at'], 'd M, h:i A (IST)') ?></small></td>
                         <td>
                             <a href="/bestdealcrm/admin/review2/<?= $lead['id'] ?>" class="btn btn-sm btn-primary">
                                 <i class="bi bi-eye me-1"></i>Review

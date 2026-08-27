@@ -63,7 +63,7 @@
                                     <span class="badge bg-warning text-dark">Pending</span>
                                 <?php endif; ?>
                             </td>
-                            <td><small class="text-muted"><?= date('d M Y', strtotime($r['created_at'])) ?></small></td>
+                            <td><small class="text-muted"><?= formatDate($r['created_at'], 'd M Y (IST)') ?></small></td>
                             <td>
                                 <a href="<?= BASE_URL ?>/admin/pf-verify/<?= $r['id'] ?>" class="btn btn-sm btn-primary">
                                     <i class="bi bi-check-circle"></i> Verify

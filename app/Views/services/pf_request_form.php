@@ -66,7 +66,7 @@
                                     <span class="text-muted">—</span>
                                 <?php endif; ?>
                             </td>
-                            <td><small class="text-muted"><?= date('d M Y', strtotime($r['created_at'])) ?></small></td>
+                            <td><small class="text-muted"><?= formatDate($r['created_at'], 'd M Y (IST)') ?></small></td>
                         </tr>
                     <?php endforeach; ?>
                 <?php endif; ?>

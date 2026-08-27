@@ -65,7 +65,7 @@
                     <i class="bi bi-file-earmark text-primary"></i>
                     <div class="flex-grow-1">
                         <small class="d-block"><?= htmlspecialchars($doc['original_name'] ?? $doc['filename']) ?></small>
-                        <small class="text-muted"><?= formatDate($doc['created_at'], 'd M Y') ?></small>
+                        <small class="text-muted"><?= formatDate($doc['created_at'], 'd M Y (IST)') ?></small>
                     </div>
                 </div>
                 <?php endforeach; ?>
