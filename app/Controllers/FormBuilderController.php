@@ -300,22 +300,29 @@ class FormBuilderController extends BaseController
     public function hiddenFields(int $formId): void
     {
         $this->ensureFieldColumns();
-        $form = $this->formModel->getFullForm($formId, true);
+
+        // Direct query - bypass getFullForm to avoid static cache issues
         $hiddenFields = [];
-        if ($form) {
-            foreach ($form['sections'] as $section) {
-                foreach ($section['fields'] as $field) {
-                    if (!empty($field['is_hidden'])) {
-                        $hiddenFields[] = [
-                            'id' => $field['id'],
-                            'section' => $section['name'],
-                            'field_name' => $field['field_name'],
-                            'label' => $field['label'],
-                            'type' => $field['type'],
-                        ];
-                    }
-                }
+        try {
+            $rows = $this->db->fetchAll(
+                "SELECT f.id, f.field_name, f.label, f.type, s.name as section_name
+                 FROM form_fields f
+                 JOIN form_sections s ON f.section_id = s.id
+                 WHERE s.form_id = ? AND f.is_hidden = 1
+                 ORDER BY s.display_order, f.display_order",
+                [$formId]
+            );
+            foreach ($rows as $row) {
+                $hiddenFields[] = [
+                    'id' => (int)$row['id'],
+                    'section' => $row['section_name'],
+                    'field_name' => $row['field_name'],
+                    'label' => $row['label'],
+                    'type' => $row['type'],
+                ];
             }
+        } catch (\Throwable $e) {
+            error_log('hiddenFields error: ' . $e->getMessage());
         }
         $this->json(['success' => true, 'fields' => $hiddenFields]);
     }
