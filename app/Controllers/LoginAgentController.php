@@ -287,7 +287,7 @@ class LoginAgentController extends BaseController
     }
 
     /**
-     * Post-Login form
+     * Post-Login form - shows agent form (read-only), pre-login (read-only), post-login (editable)
      */
     public function postLogin(int $id): void
     {
@@ -295,19 +295,134 @@ class LoginAgentController extends BaseController
         $user = currentUser();
         $lead = $this->leadModel->findById($leadId);
 
-        if (!$lead || $lead['assigned_to'] != $user['id'] || $lead['workflow_stage'] !== 'LOGIN_APPROVED') {
+        if (!$lead || $lead['assigned_to'] != $user['id']) {
+            $this->redirect('/login-agent/cases', 'error', 'Lead not found.');
+            return;
+        }
+
+        // Allow access if LOGIN_APPROVED or POST_LOGIN (draft save)
+        $allowedStages = ['LOGIN_APPROVED', 'POST_LOGIN'];
+        if (!in_array($lead['workflow_stage'], $allowedStages)) {
             $this->redirect('/login-agent/cases', 'error', 'Lead not available for post-login.');
             return;
         }
 
+        // 1. Get agent form submission (read-only)
+        $agentSubmission = $this->db->fetchOne(
+            "SELECT fs.* FROM form_submissions fs
+             JOIN users u ON fs.submitted_by = u.id
+             JOIN roles r ON u.role_id = r.id
+             WHERE fs.lead_id = ? AND r.name = 'agent'
+             ORDER BY fs.created_at DESC LIMIT 1",
+            [$leadId]
+        );
+        $agentValues = [];
+        if ($agentSubmission) {
+            $vals = $this->db->fetchAll(
+                "SELECT fsv.*, ff.label, ff.field_name, ff.type
+                 FROM form_submission_values fsv
+                 JOIN form_fields ff ON fsv.field_id = ff.id
+                 WHERE fsv.submission_id = ? ORDER BY ff.display_order",
+                [$agentSubmission['id']]
+            );
+            foreach ($vals as $v) {
+                $agentValues[] = $v;
+            }
+        }
+
+        // 2. Get pre-login checklist submission (read-only)
+        $preLoginSubmission = $this->db->fetchOne(
+            "SELECT fs.* FROM form_submissions fs
+             JOIN users u ON fs.submitted_by = u.id
+             WHERE fs.lead_id = ? AND u.id = ?
+             ORDER BY fs.created_at DESC LIMIT 1",
+            [$leadId, $user['id']]
+        );
+        $preLoginValues = [];
+        if ($preLoginSubmission) {
+            $vals = $this->db->fetchAll(
+                "SELECT fsv.*, ff.label, ff.field_name, ff.type
+                 FROM form_submission_values fsv
+                 JOIN form_fields ff ON fsv.field_id = ff.id
+                 WHERE fsv.submission_id = ? ORDER BY ff.display_order",
+                [$preLoginSubmission['id']]
+            );
+            foreach ($vals as $v) {
+                $preLoginValues[] = $v;
+            }
+        }
+
+        // 3. Get post-login form (editable)
         $forms = $this->formModel->getFormsByStage('POST_LOGIN');
-        $form = !empty($forms) ? $this->formModel->getFullForm($forms[0]['id']) : null;
+        $postForm = !empty($forms) ? $this->formModel->getFullForm($forms[0]['id']) : null;
+
+        // 4. Get existing post-login draft values
+        $postLoginValues = [];
+        $postLoginSubmission = null;
+        if ($postForm) {
+            $postLoginSubmission = $this->db->fetchOne(
+                "SELECT * FROM form_submissions WHERE lead_id = ? AND form_id = ? AND submitted_by = ? ORDER BY created_at DESC LIMIT 1",
+                [$leadId, $postForm['id'], $user['id']]
+            );
+            if ($postLoginSubmission) {
+                $vals = $this->db->fetchAll(
+                    "SELECT * FROM form_submission_values WHERE submission_id = ?",
+                    [$postLoginSubmission['id']]
+                );
+                foreach ($vals as $v) {
+                    $postLoginValues[$v['field_id']] = $v['value'];
+                }
+            }
+        }
 
         $this->view('login_agent/post_login', [
-            'title' => 'Post-Login Form',
-            'lead'  => $lead,
-            'form'  => $form,
+            'title'             => 'Post-Login Form',
+            'lead'              => $lead,
+            'agentValues'       => $agentValues,
+            'preLoginValues'    => $preLoginValues,
+            'postForm'          => $postForm,
+            'postLoginValues'   => $postLoginValues,
+            'postLoginSubmission' => $postLoginSubmission,
         ]);
+    }
+
+    /**
+     * Save post-login as draft
+     */
+    public function savePostLoginDraft(): void
+    {
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            $this->json(['error' => 'Invalid request.'], 405);
+            return;
+        }
+
+        $leadId = (int)($_POST['lead_id'] ?? 0);
+        $formId = (int)($_POST['form_id'] ?? 0);
+        $values = $_POST['form_data'] ?? [];
+        $user = currentUser();
+
+        $lead = $this->leadModel->findById($leadId);
+        if (!$lead || $lead['assigned_to'] != $user['id']) {
+            $this->json(['error' => 'Unauthorized.'], 403);
+            return;
+        }
+
+        $existing = $this->db->fetchOne(
+            "SELECT id FROM form_submissions WHERE lead_id = ? AND submitted_by = ? AND form_id = ? ORDER BY created_at DESC LIMIT 1",
+            [$leadId, $user['id'], $formId]
+        );
+
+        if ($existing) {
+            $this->formModel->updateSubmission($existing['id'], $values);
+            $this->db->update('form_submissions', ['status' => 'draft'], 'id = ?', [$existing['id']]);
+        } else {
+            $submissionId = $this->formModel->submitForm($formId, $leadId, $user['id'], $values);
+            $this->db->update('form_submissions', ['status' => 'draft'], 'id = ?', [$submissionId]);
+        }
+
+        logActivity($user['id'], 'post_login_draft_saved', 'lead', $leadId);
+
+        $this->json(['success' => true, 'message' => 'Post-Login draft saved.']);
     }
 
     /**
@@ -331,7 +446,6 @@ class LoginAgentController extends BaseController
             return;
         }
 
-        // Save submission
         $existing = $this->db->fetchOne(
             "SELECT id FROM form_submissions WHERE lead_id = ? AND submitted_by = ? AND form_id = ? ORDER BY created_at DESC LIMIT 1",
             [$leadId, $user['id'], $formId]
@@ -339,15 +453,19 @@ class LoginAgentController extends BaseController
 
         if ($existing) {
             $this->formModel->updateSubmission($existing['id'], $values);
+            $this->db->update('form_submissions', [
+                'status' => 'submitted',
+            ], 'id = ?', [$existing['id']]);
         } else {
             $this->formModel->submitForm($formId, $leadId, $user['id'], $values);
         }
 
-        // Transition to POST_LOGIN stage
-        $workflowModel = new \Models\Workflow();
-        $workflowModel->transition($leadId, $lead['workflow_stage'], 'POST_LOGIN', $user['id'], 'login_agent', null, 'post_login_submitted');
+        // Transition to POST_LOGIN
+        if ($lead['workflow_stage'] !== 'POST_LOGIN') {
+            $workflowModel = new \Models\Workflow();
+            $workflowModel->transition($leadId, $lead['workflow_stage'], 'POST_LOGIN', $user['id'], 'login_agent', null, 'post_login_submitted');
+        }
 
-        // Notify admin
         $admins = $this->db->fetchAll("SELECT id FROM users WHERE role_id = (SELECT id FROM roles WHERE name = 'admin')");
         foreach ($admins as $admin) {
             createNotification($admin['id'], 'Post-Login Submitted', "Post-login form submitted for lead #{$leadId}.", 'info', $leadId);
@@ -355,7 +473,7 @@ class LoginAgentController extends BaseController
 
         logActivity($user['id'], 'post_login_submitted', 'lead', $leadId);
 
-        $this->json(['success' => true, 'message' => 'Post-Login form submitted.']);
+        $this->json(['success' => true, 'message' => 'Post-Login form submitted to Admin for Review 3.']);
     }
 
     /**

@@ -213,6 +213,7 @@ $router->middleware(['AuthMiddleware'], function ($router) {
         $router->post('/cases/submit-checklist', 'LoginAgentController', 'submitChecklist');
         $router->post('/cases/send-back', 'LoginAgentController', 'sendBackToAgent');
         $router->get('/cases/{id}/post-login', 'LoginAgentController', 'postLogin');
+        $router->post('/cases/save-post-login-draft', 'LoginAgentController', 'savePostLoginDraft');
         $router->post('/cases/submit-post-login', 'LoginAgentController', 'submitPostLogin');
         
         // Notifications
