@@ -26,7 +26,7 @@
                         <h6 class="text-info fw-bold">Request Info</h6>
                         <table class="table table-sm">
                             <tr><td class="text-muted" style="width:120px">Agent</td><td><span class="badge bg-info text-dark"><?= htmlspecialchars($row['agent_name'] ?? 'Admin') ?></span></td></tr>
-                            <tr><td class="text-muted">Submitted</td><td><?= formatDate($row['created_at'], 'd M Y, h:i A (IST)') ?></td></tr>
+                            <tr><td class="text-muted">Submitted</td><td><?= formatDate($row['created_at'], 'd M Y, h:i A') ?></td></tr>
                             <tr><td class="text-muted">Status</td><td><span class="badge bg-<?= $row['status'] === 'replied' ? 'success' : 'warning' ?>"><?= ucfirst($row['status']) ?></span></td></tr>
                             <?php if ($row['cibil_checked'] === 'yes'): ?>
                             <tr><td class="text-muted">CIBIL Checked</td><td><span class="badge bg-success">Yes</span></td></tr>

@@ -49,7 +49,7 @@
                 <?php else: ?>
                     <?php foreach ($entries as $e): ?>
                         <tr id="entry-row-<?= $e['id'] ?>">
-                            <td><small class="text-muted"><?= formatDate($e['created_at'], 'd M Y, h:i A (IST)') ?></small></td>
+                            <td><small class="text-muted"><?= formatDate($e['created_at'], 'd M Y, h:i A') ?></small></td>
                             <td><?= htmlspecialchars($e['mobile_no']) ?></td>
                             <td><strong><?= htmlspecialchars($e['customer_name']) ?></strong></td>
                             <td><small><?= htmlspecialchars($e['city']) ?></small></td>

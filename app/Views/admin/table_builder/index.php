@@ -28,7 +28,7 @@
                         <td><code><?= htmlspecialchars($table['name']) ?></code></td>
                         <td><strong><?= htmlspecialchars($table['display_name']) ?></strong></td>
                         <td><small class="text-muted"><?= htmlspecialchars(truncate($table['description'] ?? '', 50)) ?></small></td>
-                        <td><small class="text-muted"><?= formatDate($table['created_at'], 'd M Y (IST)') ?></small></td>
+                        <td><small class="text-muted"><?= formatDate($table['created_at'], 'd M Y') ?></small></td>
                         <td>
                             <a href="/bestdealcrm/admin/table-builder/<?= $table['id'] ?>/edit" class="btn btn-sm btn-outline-primary">
                                 <i class="bi bi-pencil"></i> Edit

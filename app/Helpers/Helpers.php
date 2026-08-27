@@ -18,14 +18,14 @@ function slugify(string $text): string
 /**
  * Format date for display
  */
-function formatDate(string $date, string $format = 'd M Y, h:i A (IST)'): string
+function formatDate(string $date, string $format = 'd M Y, h:i A'): string
 {
     if (empty($date) || $date === '0000-00-00 00:00:00' || $date === '0000-00-00') return '';
     try {
-        // If date string has no timezone info, interpret as server-local (IST since we set it)
-        $dt = new \DateTime($date);
-        $dt->setTimezone(new \DateTimeZone('Asia/Kolkata'));
-        return $dt->format($format);
+        // Force-interpret as IST since all dates are stored using PHP date() with IST timezone
+        // Do NOT use I/S/T letters in format — they are PHP format codes (DST/ordinal/timezone)
+        $dt = new \DateTime($date, new \DateTimeZone('Asia/Kolkata'));
+        return $dt->format($format) . ' (IST)';
     } catch (\Exception $e) {
         return $date . ' (IST)';
     }

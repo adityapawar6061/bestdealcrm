@@ -39,7 +39,7 @@
                 </div>
                 <div class="col-6">
                     <small class="text-muted d-block">Created</small>
-                    <strong><?= formatDate($profileUser['created_at'] ?? '', 'd M Y (IST)') ?></strong>
+                    <strong><?= formatDate($profileUser['created_at'] ?? '', 'd M Y') ?></strong>
                 </div>
                 <div class="col-6">
                     <small class="text-muted d-block">Last Login</small>

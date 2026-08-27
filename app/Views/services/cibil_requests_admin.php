@@ -48,7 +48,7 @@
                     <?php foreach ($rows as $r): ?>
                         <tr>
                             <td><?= $r['id'] ?></td>
-                            <td><small class="text-muted"><?= formatDate($r['created_at'], 'd M Y (IST)') ?></small></td>
+                            <td><small class="text-muted"><?= formatDate($r['created_at'], 'd M Y') ?></small></td>
                             <td><span class="badge bg-info text-dark"><?= htmlspecialchars($r['agent_name'] ?? 'Admin') ?></span></td>
                             <td><strong><?= htmlspecialchars($r['name_as_pan']) ?></strong></td>
                             <td><?= htmlspecialchars($r['mobile']) ?></td>

@@ -127,7 +127,7 @@
                     <div class="flex-grow-1">
                         <strong><?= htmlspecialchars($log['user_name'] ?? 'System') ?></strong>
                         <span class="text-muted">— <?= htmlspecialchars(str_replace('_', ' ', $log['action'])) ?></span>
-                        <div class="text-muted" style="font-size:0.75rem"><?= formatDate($log['created_at'], 'd M, h:i A (IST)') ?></div>
+                        <div class="text-muted" style="font-size:0.75rem"><?= formatDate($log['created_at'], 'd M, h:i A') ?></div>
                     </div>
                 </div>
                 <?php endforeach; ?>

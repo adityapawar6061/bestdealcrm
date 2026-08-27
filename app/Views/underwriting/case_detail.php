@@ -155,7 +155,7 @@
                         <i class="bi bi-file-earmark text-primary"></i>
                         <div class="flex-grow-1">
                             <small class="d-block"><?= htmlspecialchars($doc['original_name'] ?? $doc['filename']) ?></small>
-                            <small class="text-muted"><?= htmlspecialchars($doc['purpose'] ?? 'Document') ?> • <?= formatDate($doc['created_at'], 'd M Y (IST)') ?></small>
+                            <small class="text-muted"><?= htmlspecialchars($doc['purpose'] ?? 'Document') ?> • <?= formatDate($doc['created_at'], 'd M Y') ?></small>
                         </div>
                         <a href="/bestdealcrm/public/uploads/documents/<?= $lead['id'] ?>/<?= htmlspecialchars($doc['filename']) ?>" target="_blank" class="btn btn-sm btn-outline-primary"><i class="bi bi-download"></i></a>
                     </div>
@@ -176,7 +176,7 @@
                 <div class="flex-grow-1">
                     <div class="d-flex justify-content-between">
                         <strong class="small text-primary"><?= htmlspecialchars($r['user_name'] ?? 'System') ?></strong>
-                        <small class="text-muted"><?= formatDate($r['created_at'], 'd M, h:i A (IST)') ?></small>
+                        <small class="text-muted"><?= formatDate($r['created_at'], 'd M, h:i A') ?></small>
                     </div>
                     <small class="text-muted d-block"><?= htmlspecialchars($r['stage'] ?? '') ?></small>
                     <div class="small mt-1"><?= nl2br(htmlspecialchars($r['remark'])) ?></div>
@@ -196,7 +196,7 @@
                 <div>
                     <strong><?= htmlspecialchars($event['performed_by_name'] ?? 'System') ?></strong>
                     <span class="text-muted">— <?= htmlspecialchars(str_replace('_', ' ', $event['action'] ?? $event['new_stage'])) ?></span>
-                    <div class="text-muted" style="font-size:0.75rem"><?= formatDate($event['created_at'], 'd M, h:i A (IST)') ?></div>
+                    <div class="text-muted" style="font-size:0.75rem"><?= formatDate($event['created_at'], 'd M, h:i A') ?></div>
                 </div>
             </div>
             <?php endforeach; ?>
