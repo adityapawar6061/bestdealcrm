@@ -61,13 +61,89 @@ class UnderwritingController extends BaseController
         }
 
         $timeline = $this->leadModel->getTimeline($id);
-        $submissions = (new \Models\DynamicForm())->getSubmissionsForLead($id);
+        $formModel = new \Models\DynamicForm();
+
+        // 1. Agent form values (read-only)
+        $agentSubmission = $this->db->fetchOne(
+            "SELECT fs.* FROM form_submissions fs
+             JOIN users u ON fs.submitted_by = u.id
+             JOIN roles r ON u.role_id = r.id
+             WHERE fs.lead_id = ? AND r.name = 'agent'
+             ORDER BY fs.created_at DESC LIMIT 1",
+            [$id]
+        );
+        $agentValues = [];
+        if ($agentSubmission) {
+            $agentValues = $this->db->fetchAll(
+                "SELECT fsv.*, ff.label, ff.field_name, ff.type, ff.field_type
+                 FROM form_submission_values fsv
+                 JOIN form_fields ff ON fsv.field_id = ff.id
+                 WHERE fsv.submission_id = ? ORDER BY ff.display_order",
+                [$agentSubmission['id']]
+            );
+        }
+
+        // 2. Pre-login checklist values (read-only)
+        $preLoginSubmission = $this->db->fetchOne(
+            "SELECT fs.* FROM form_submissions fs
+             JOIN forms f ON fs.form_id = f.id
+             WHERE fs.lead_id = ? AND f.code = 'PRE_LOGIN_CHECKLIST'
+             ORDER BY fs.created_at DESC LIMIT 1",
+            [$id]
+        );
+        $preLoginValues = [];
+        if ($preLoginSubmission) {
+            $preLoginValues = $this->db->fetchAll(
+                "SELECT fsv.*, ff.label, ff.field_name, ff.type, ff.field_type
+                 FROM form_submission_values fsv
+                 JOIN form_fields ff ON fsv.field_id = ff.id
+                 WHERE fsv.submission_id = ? ORDER BY ff.display_order",
+                [$preLoginSubmission['id']]
+            );
+        }
+
+        // 3. Post-login form values (read-only)
+        $postLoginSubmission = $this->db->fetchOne(
+            "SELECT fs.* FROM form_submissions fs
+             JOIN forms f ON fs.form_id = f.id
+             WHERE fs.lead_id = ? AND f.code = 'POST_LOGIN_FORM'
+             ORDER BY fs.created_at DESC LIMIT 1",
+            [$id]
+        );
+        $postLoginValues = [];
+        if ($postLoginSubmission) {
+            $postLoginValues = $this->db->fetchAll(
+                "SELECT fsv.*, ff.label, ff.field_name, ff.type, ff.field_type
+                 FROM form_submission_values fsv
+                 JOIN form_fields ff ON fsv.field_id = ff.id
+                 WHERE fsv.submission_id = ? ORDER BY ff.display_order",
+                [$postLoginSubmission['id']]
+            );
+        }
+
+        // 4. Documents
+        $documents = $this->db->fetchAll(
+            "SELECT * FROM documents WHERE lead_id = ? ORDER BY created_at DESC",
+            [$id]
+        );
+
+        // 5. Remarks
+        $remarks = $this->db->fetchAll(
+            "SELECT r.*, u.name as user_name FROM remarks r
+             LEFT JOIN users u ON r.user_id = u.id
+             WHERE r.lead_id = ? ORDER BY r.created_at DESC",
+            [$id]
+        );
 
         $this->view('underwriting/case_detail', [
-            'title'       => 'Underwriting: Lead #' . $id,
-            'lead'        => $lead,
-            'timeline'    => $timeline,
-            'submissions' => $submissions,
+            'title'              => 'Underwriting: Lead #' . $id,
+            'lead'               => $lead,
+            'timeline'           => $timeline,
+            'agentValues'        => $agentValues,
+            'preLoginValues'     => $preLoginValues,
+            'postLoginValues'    => $postLoginValues,
+            'documents'          => $documents,
+            'remarks'            => $remarks,
         ]);
     }
 
