@@ -220,14 +220,11 @@ class AdminController extends BaseController
             return;
         }
 
-        // Prevent deleting yourself
         $currentUser = currentUser();
         if ($currentUser['id'] == $id) {
             $this->json(['error' => 'You cannot delete your own account.'], 400);
             return;
         }
-
-        // Prevent deleting Super Admin (id=1)
         if ($id == 1) {
             $this->json(['error' => 'Cannot delete the main admin account.'], 400);
             return;
@@ -239,26 +236,42 @@ class AdminController extends BaseController
             return;
         }
 
-        // Soft delete: rename, deactivate, clear password
-        $this->db->update('users', [
-            'name'            => 'EX_EMPLOYEE (' . $user['name'] . ')',
-            'email'           => 'ex_' . $id . '@deleted.local',
-            'username'        => 'ex_' . $id,
-            'password_hash'   => '',
-            'status'          => 'inactive',
-            'team_leader_id'  => null,
-            'updated_at'      => date('Y-m-d H:i:s'),
-        ], 'id = ?', [$id]);
+        $this->db->beginTransaction();
+        try {
+            // 1. Rename user to EX_EMPLOYEE + deactivate + clear password
+            //    This automatically updates ALL JOINed name displays:
+            //    - activity_logs (via users JOIN)
+            //    - workflow_history (via users JOIN)
+            //    - form_submissions (via users JOIN)
+            //    - remarks (via users JOIN)
+            //    - lead_assignments (via users JOIN)
+            //    - leads assigned_to_name (via users JOIN)
+            $this->db->update('users', [
+                'name'            => 'EX_EMPLOYEE (' . $user['name'] . ')',
+                'email'           => 'ex_' . $id . '@deleted.local',
+                'username'        => 'ex_' . $id,
+                'password_hash'   => '',
+                'status'          => 'inactive',
+                'team_leader_id'  => null,
+                'updated_at'      => date('Y-m-d H:i:s'),
+            ], 'id = ?', [$id]);
 
-        // Unassign all their leads — set assigned_to to NULL
-        $this->db->update('leads', [
-            'assigned_to' => null,
-            'updated_at'  => date('Y-m-d H:i:s'),
-        ], 'assigned_to = ?', [$id]);
+            // 2. Unassign all their leads
+            $this->db->update('leads', [
+                'assigned_to' => null,
+                'updated_at'  => date('Y-m-d H:i:s'),
+            ], 'assigned_to = ?', [$id]);
 
-        logActivity($currentUser['id'], 'user_deleted', 'user', $id, null, $user['name'] . ' → EX_EMPLOYEE');
+            $this->db->commit();
 
-        $this->json(['success' => true, 'message' => "User {$user['name']} deleted. Name changed to EX_EMPLOYEE."]);
+            logActivity($currentUser['id'], 'user_deleted', 'user', $id, null, $user['name'] . ' → EX_EMPLOYEE');
+
+            $this->json(['success' => true, 'message' => "User {$user['name']} deleted. Renamed to EX_EMPLOYEE in all records."]);
+        } catch (\Throwable $e) {
+            $this->db->rollback();
+            error_log('deleteUser error: ' . $e->getMessage());
+            $this->json(['error' => 'Delete failed: ' . $e->getMessage()], 500);
+        }
     }
 
     public function userProfile(int $id): void
