@@ -19,27 +19,24 @@ $workflowSteps = [
     'COMPLETED'         => ['label' => 'Completed',       'icon' => 'bi-trophy'],
 ];
 
-// Admin data field names to make read-only
-$adminDataFields = ['customer_name', 'mobile_number', 'location', 'state', 'existing_la', 'salary', 'actual_salary', 'dtmf_input', 'response_date', 'data_type', 'bank_name'];
-$adminDataLabels = ['Customer Name (AD)', 'Mobile Number (AD)', 'Location', 'State', 'Existing La', 'Salary', 'Actual Salary', 'DTMF Input', 'Response Date', 'Data Type', 'Bank Name'];
+// Use sections in their saved display_order from the form builder
+// (getFullForm already orders by display_order)
+$sortedSections = $form['sections'] ?? [];
 
-// Separate sections: Admin_Data first, then others
-$adminSection = null;
-$otherSections = [];
-if ($form && !empty($form['sections'])) {
-    foreach ($form['sections'] as $section) {
-        $lowerName = strtolower($section['name'] ?? '');
-        if (strpos($lowerName, 'admin') !== false || strpos($lowerName, 'admin_data') !== false || strpos($lowerName, 'admin data') !== false) {
-            $adminSection = $section;
-        } else {
-            $otherSections[] = $section;
-        }
+// Helper: determine column class based on section layout and field type
+function getFieldColClass($field, $sectionLayout = 2) {
+    $type = $field['type'] ?? 'text';
+    $fieldType = $field['field_type'] ?? 'field';
+    // Headings/subheadings always full width
+    if ($fieldType === 'heading' || $fieldType === 'subheading') return 'col-12';
+    // Textareas always full width
+    if ($type === 'textarea') return 'col-12';
+    switch ((int)$sectionLayout) {
+        case 1:  return 'col-md-12';
+        case 3:  return 'col-md-4';
+        default: return 'col-md-6';
     }
 }
-// Rebuild: admin section first, then remaining
-$sortedSections = [];
-if ($adminSection) $sortedSections[] = $adminSection;
-$sortedSections = array_merge($sortedSections, $otherSections);
 ?>
 
 <div class="page-header d-flex justify-content-between align-items-center">
@@ -115,6 +112,7 @@ $sortedSections = array_merge($sortedSections, $otherSections);
         $isAdminSection = false;
         $lowerSec = strtolower($section['name'] ?? '');
         if (strpos($lowerSec, 'admin') !== false) $isAdminSection = true;
+        $sectionLayout = $section['column_layout'] ?? 2;
     ?>
     <div class="table-container mb-4 <?= $isAdminSection ? 'border-start border-4 border-primary' : '' ?>">
         <h6 class="fw-bold mb-3 <?= $isAdminSection ? 'text-primary' : '' ?>">
@@ -127,6 +125,7 @@ $sortedSections = array_merge($sortedSections, $otherSections);
             <?php if ($isAdminSection): ?>
                 <span class="badge bg-secondary ms-2" style="font-size:0.65rem">READ ONLY</span>
             <?php endif; ?>
+            <small class="text-muted fw-normal ms-2">(<?= (int)$sectionLayout ?> column<?= $sectionLayout > 1 ? 's' : '' ?>)</small>
         </h6>
 
         <div class="row g-3">
@@ -136,6 +135,10 @@ $sortedSections = array_merge($sortedSections, $otherSections);
                 $fieldName = "form_data[{$field['id']}]";
                 $fn = strtolower($field['field_name'] ?? '');
                 $fl = strtolower($field['label'] ?? '');
+                $fieldType = $field['field_type'] ?? 'field';
+
+                // Skip hidden fields
+                if (!empty($field['is_hidden'])) continue;
 
                 // Auto-fill agent name
                 if (empty($value) && (strpos($fn, 'agent_name') !== false || strpos($fl, 'agent name') !== false)) {
@@ -154,8 +157,9 @@ $sortedSections = array_merge($sortedSections, $otherSections);
 
                 $roAttr = $fieldReadOnly ? 'readonly disabled' : '';
                 $roClass = $fieldReadOnly ? 'bg-light' : '';
+                $colClass = getFieldColClass($field, $sectionLayout);
                 ?>
-                <div class="col-md-<?= in_array($field['type'], ['textarea']) ? '12' : '6' ?>">
+                <div class="<?= $colClass ?>">
                     <?php if ($field['type'] === 'heading'): ?>
                         <h5 class="mt-2"><?= htmlspecialchars($field['label']) ?></h5>
                     <?php elseif ($field['type'] === 'textarea'): ?>

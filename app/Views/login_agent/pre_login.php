@@ -17,6 +17,23 @@
     </div>
 </div>
 
+<?php
+// Section layout helper
+if (!function_exists('getFieldColClass')) {
+    function getFieldColClass($field, $sectionLayout = 2) {
+        $type = $field['type'] ?? 'text';
+        $fieldType = $field['field_type'] ?? 'field';
+        if ($fieldType === 'heading' || $fieldType === 'subheading') return 'col-12';
+        if ($type === 'textarea') return 'col-12';
+        switch ((int)$sectionLayout) {
+            case 1:  return 'col-md-12';
+            case 3:  return 'col-md-4';
+            default: return 'col-md-6';
+        }
+    }
+}
+?>
+
 <?php if (!$form): ?>
     <div class="alert alert-warning">No Pre-Login Checklist form configured. Please contact admin.</div>
 <?php else: ?>
@@ -26,6 +43,7 @@
     <input type="hidden" name="form_id" value="<?= $form['id'] ?>">
 
     <?php foreach ($form['sections'] as $section): ?>
+    <?php $sectionLayout = $section['column_layout'] ?? 2; ?>
     <div class="table-container mb-4">
         <h6 class="fw-bold text-primary mb-3">
             <i class="bi bi-check2-square me-1"></i>
@@ -37,8 +55,9 @@
                 $value = $existingValues[$field['id']] ?? $field['default_value'] ?? '';
                 $isRequired = $field['required'] ? 'required' : '';
                 $fieldName = "form_data[{$field['id']}]";
+                $colClass = getFieldColClass($field, $sectionLayout);
                 ?>
-                <div class="col-md-6">
+                <div class="<?= $colClass ?>">
                     <label class="form-label small fw-semibold">
                         <?= htmlspecialchars($field['label']) ?>
                         <?php if ($field['required']): ?><span class="text-danger">*</span><?php endif; ?>

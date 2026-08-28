@@ -1,3 +1,20 @@
+<?php
+// Section layout helper
+if (!function_exists('getFieldColClass')) {
+    function getFieldColClass($field, $sectionLayout = 2) {
+        $type = $field['type'] ?? 'text';
+        $fieldType = $field['field_type'] ?? 'field';
+        if ($fieldType === 'heading' || $fieldType === 'subheading') return 'col-12';
+        if ($type === 'textarea') return 'col-12';
+        switch ((int)$sectionLayout) {
+            case 1:  return 'col-md-12';
+            case 3:  return 'col-md-4';
+            default: return 'col-md-6';
+        }
+    }
+}
+?>
+
 <div class="page-header d-flex justify-content-between align-items-center">
     <div>
         <h4><i class="bi bi-clipboard-data me-2"></i>Post-Login Form</h4>
@@ -92,10 +109,9 @@
     <form id="postLoginForm" onsubmit="return false;">
         <?= csrfField() ?>
         <input type="hidden" name="lead_id" value="<?= $lead['id'] ?>">
-        <input type="hidden" name="form_id" value="<?= $postForm['id'] ?>">
-
-        <?php foreach ($postForm['sections'] as $section): ?>
-        <div class="mb-4">
+        <input type="hidden" name="form_id" value="<?= $postForm['id'] ?>">    <?php foreach ($postForm['sections'] as $section): ?>
+    <?php $sectionLayout = $section['column_layout'] ?? 2; ?>
+    <div class="mb-4">
             <h6 class="small fw-bold text-muted mb-2 border-bottom pb-1">
                 <i class="bi bi-card-list me-1"></i> <?= htmlspecialchars($section['name']) ?>
             </h6>
@@ -105,13 +121,14 @@
                     $value = $postLoginValues[$field['id']] ?? $field['default_value'] ?? '';
                     $isRequired = $field['required'] ? 'required' : '';
                     $fieldName = "form_data[{$field['id']}]";
+                    $colClass = getFieldColClass($field, $sectionLayout);
                     ?>
                     <?php if (($field['field_type'] ?? 'field') === 'heading'): ?>
                         <div class="col-12"><h5 class="text-primary mt-2"><?= htmlspecialchars($field['label']) ?></h5></div>
                     <?php elseif (($field['field_type'] ?? 'field') === 'subheading'): ?>
                         <div class="col-12"><h6 class="text-dark mt-1"><?= htmlspecialchars($field['label']) ?></h6></div>
                     <?php else: ?>
-                    <div class="col-md-6">
+                    <div class="<?= $colClass ?>">
                         <label class="form-label small fw-semibold">
                             <?= htmlspecialchars($field['label']) ?>
                             <?php if ($field['required']): ?><span class="text-danger">*</span><?php endif; ?>
