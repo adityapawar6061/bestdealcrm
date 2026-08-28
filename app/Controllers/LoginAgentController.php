@@ -102,7 +102,7 @@ class LoginAgentController extends BaseController
         $user = currentUser();
         $lead = $this->leadModel->findById($leadId);
 
-        if (!$lead || $lead['assigned_to'] != $user['id']) {
+        if (!$lead || ($lead['assigned_to'] != $user['id'] && ($lead['created_by'] ?? 0) != $user['id'])) {
             $this->redirect('/login-agent/cases', 'error', 'Lead not found.');
             return;
         }
@@ -132,12 +132,37 @@ class LoginAgentController extends BaseController
             }
         }
 
+        // 1. Get agent form submission (read-only)
+        $agentSubmission = $this->db->fetchOne(
+            "SELECT fs.* FROM form_submissions fs
+             JOIN users u ON fs.submitted_by = u.id
+             JOIN roles r ON u.role_id = r.id
+             WHERE fs.lead_id = ? AND r.name = 'agent'
+             ORDER BY fs.created_at DESC LIMIT 1",
+            [$leadId]
+        );
+        $agentValues = [];
+        if ($agentSubmission) {
+            $agentValues = $this->db->fetchAll(
+                "SELECT fsv.*, ff.label, ff.field_name, ff.type, ff.field_type
+                 FROM form_submission_values fsv
+                 JOIN form_fields ff ON fsv.field_id = ff.id
+                 WHERE fsv.submission_id = ? ORDER BY ff.display_order",
+                [$agentSubmission['id']]
+            );
+        }
+
+        // 2. Get all submissions for this lead (for reference)
+        $allSubmissions = $this->formModel->getSubmissionsForLead($leadId);
+
         $this->view('login_agent/pre_login', [
             'title'          => 'Pre-Login Checklist',
             'lead'           => $lead,
             'form'           => $form,
             'existingValues' => $existingValues,
             'submission'     => $existing,
+            'agentValues'    => $agentValues,
+            'allSubmissions' => $allSubmissions,
         ]);
     }
 
@@ -157,7 +182,7 @@ class LoginAgentController extends BaseController
         $user = currentUser();
 
         $lead = $this->leadModel->findById($leadId);
-        if (!$lead || $lead['assigned_to'] != $user['id']) {
+        if (!$lead || ($lead['assigned_to'] != $user['id'] && ($lead['created_by'] ?? 0) != $user['id'])) {
             $this->json(['error' => 'Unauthorized.'], 403);
             return;
         }
@@ -200,7 +225,7 @@ class LoginAgentController extends BaseController
         $user = currentUser();
 
         $lead = $this->leadModel->findById($leadId);
-        if (!$lead || $lead['assigned_to'] != $user['id']) {
+        if (!$lead || ($lead['assigned_to'] != $user['id'] && ($lead['created_by'] ?? 0) != $user['id'])) {
             $this->json(['error' => 'Unauthorized.'], 403);
             return;
         }
@@ -259,7 +284,7 @@ class LoginAgentController extends BaseController
         }
 
         $lead = $this->leadModel->findById($leadId);
-        if (!$lead || $lead['assigned_to'] != $user['id']) {
+        if (!$lead || ($lead['assigned_to'] != $user['id'] && ($lead['created_by'] ?? 0) != $user['id'])) {
             $this->json(['error' => 'Unauthorized.'], 403);
             return;
         }
@@ -295,7 +320,7 @@ class LoginAgentController extends BaseController
         $user = currentUser();
         $lead = $this->leadModel->findById($leadId);
 
-        if (!$lead || $lead['assigned_to'] != $user['id']) {
+        if (!$lead || ($lead['assigned_to'] != $user['id'] && ($lead['created_by'] ?? 0) != $user['id'])) {
             $this->redirect('/login-agent/cases', 'error', 'Lead not found.');
             return;
         }
@@ -402,7 +427,7 @@ class LoginAgentController extends BaseController
         $user = currentUser();
 
         $lead = $this->leadModel->findById($leadId);
-        if (!$lead || $lead['assigned_to'] != $user['id']) {
+        if (!$lead || ($lead['assigned_to'] != $user['id'] && ($lead['created_by'] ?? 0) != $user['id'])) {
             $this->json(['error' => 'Unauthorized.'], 403);
             return;
         }
@@ -441,7 +466,7 @@ class LoginAgentController extends BaseController
         $user = currentUser();
 
         $lead = $this->leadModel->findById($leadId);
-        if (!$lead || $lead['assigned_to'] != $user['id']) {
+        if (!$lead || ($lead['assigned_to'] != $user['id'] && ($lead['created_by'] ?? 0) != $user['id'])) {
             $this->json(['error' => 'Unauthorized.'], 403);
             return;
         }
