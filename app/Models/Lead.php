@@ -118,7 +118,7 @@ class Lead
     public function getByAgent(int $agentId, array $filters = [], int $page = 1, int $perPage = 25): array
     {
         // Show leads the agent created OR is currently assigned to
-        $where = '(l.assigned_to = ? OR (COALESCE(l.created_by, 0) = ? AND l.created_by IS NOT NULL))';
+        $where = '(l.assigned_to = ? OR l.created_by = ?)';
         $params = [$agentId, $agentId];
 
         return $this->searchLeads($where, $params, $filters, $page, $perPage);
