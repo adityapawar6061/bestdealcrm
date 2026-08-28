@@ -8,6 +8,27 @@ class Lead
     public function __construct()
     {
         $this->db = \Database::getInstance();
+        $this->ensureColumns();
+    }
+
+    /**
+     * Auto-create columns needed for lead tracking
+     */
+    private function ensureColumns(): void
+    {
+        static $done = false;
+        if ($done) return;
+        $done = true;
+        try {
+            $colCheck = $this->db->fetchOne(
+                "SHOW COLUMNS FROM leads LIKE 'created_by'"
+            );
+            if (!$colCheck) {
+                $this->db->query("ALTER TABLE `leads` ADD COLUMN `created_by` INT UNSIGNED DEFAULT NULL AFTER `assigned_by`");
+            }
+        } catch (\Throwable $e) {
+            // Column might already exist or permissions issue
+        }
     }
 
     public function findById(int $id): ?array
