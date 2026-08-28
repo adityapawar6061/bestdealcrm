@@ -19,15 +19,19 @@ class Lead
         static $done = false;
         if ($done) return;
         $done = true;
-        try {
-            $colCheck = $this->db->fetchOne(
-                "SHOW COLUMNS FROM leads LIKE 'created_by'"
-            );
-            if (!$colCheck) {
-                $this->db->query("ALTER TABLE `leads` ADD COLUMN `created_by` INT UNSIGNED DEFAULT NULL AFTER `assigned_by`");
-            }
-        } catch (\Throwable $e) {
-            // Column might already exist or permissions issue
+        $cols = [
+            'created_by'       => 'INT UNSIGNED DEFAULT NULL AFTER `assigned_by`',
+            'disposition'      => 'VARCHAR(100) DEFAULT NULL',
+            'agent_disposition'=> 'VARCHAR(100) DEFAULT NULL',
+            'agent_remark'     => 'TEXT DEFAULT NULL',
+        ];
+        foreach ($cols as $col => $def) {
+            try {
+                $check = $this->db->fetchOne("SHOW COLUMNS FROM leads LIKE '{$col}'");
+                if (!$check) {
+                    $this->db->query("ALTER TABLE `leads` ADD COLUMN `{$col}` {$def}");
+                }
+            } catch (\Throwable $e) {}
         }
     }
 

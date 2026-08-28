@@ -159,19 +159,21 @@ class AgentController extends BaseController
         $user = currentUser();
         $lead = $this->leadModel->findById($id);
         
-        if (!$lead || $lead['assigned_to'] != $user['id']) {
+        if (!$lead || ($lead['assigned_to'] != $user['id'] && ($lead['created_by'] ?? 0) != $user['id'])) {
             $this->redirect('/agent/leads', 'error', 'Lead not found or not assigned to you.');
             return;
         }
 
         $timeline = $this->leadModel->getTimeline($id);
         $submissions = $this->formModel->getSubmissionsForLead($id);
+        $assignments = $this->leadModel->getAssignmentHistory($id);
 
         $this->view('agent/lead_detail', [
             'title'       => 'Lead #' . $id,
             'lead'        => $lead,
             'timeline'    => $timeline,
             'submissions' => $submissions,
+            'assignments' => $assignments,
         ]);
     }
 
@@ -181,7 +183,7 @@ class AgentController extends BaseController
         $user = currentUser();
         $lead = $this->leadModel->findById($leadId);
 
-        if (!$lead || $lead['assigned_to'] != $user['id']) {
+        if (!$lead || ($lead['assigned_to'] != $user['id'] && ($lead['created_by'] ?? 0) != $user['id'])) {
             $this->redirect('/agent/leads', 'error', 'Lead not found.');
             return;
         }
@@ -283,7 +285,7 @@ class AgentController extends BaseController
         $user = currentUser();
         $lead = $this->leadModel->findById($leadId);
 
-        if (!$lead || $lead['assigned_to'] != $user['id']) {
+        if (!$lead || ($lead['assigned_to'] != $user['id'] && ($lead['created_by'] ?? 0) != $user['id'])) {
             $this->json(['error' => 'Unauthorized.'], 403);
             return;
         }
@@ -324,7 +326,7 @@ class AgentController extends BaseController
         $user = currentUser();
         $lead = $this->leadModel->findById($leadId);
 
-        if (!$lead || $lead['assigned_to'] != $user['id']) {
+        if (!$lead || ($lead['assigned_to'] != $user['id'] && ($lead['created_by'] ?? 0) != $user['id'])) {
             $this->json(['error' => 'Unauthorized.'], 403);
             return;
         }
@@ -441,7 +443,7 @@ class AgentController extends BaseController
             $user = currentUser();
 
             $lead = $this->leadModel->findById($leadId);
-            if (!$lead || $lead['assigned_to'] != $user['id']) {
+            if (!$lead || ($lead['assigned_to'] != $user['id'] && ($lead['created_by'] ?? 0) != $user['id'])) {
                 $this->json(['error' => 'Unauthorized.'], 403);
                 return;
             }
@@ -562,7 +564,7 @@ class AgentController extends BaseController
         $user = currentUser();
 
         $lead = $this->leadModel->findById($leadId);
-        if (!$lead || $lead['assigned_to'] != $user['id']) {
+        if (!$lead || ($lead['assigned_to'] != $user['id'] && ($lead['created_by'] ?? 0) != $user['id'])) {
             $this->json(['error' => 'Unauthorized.'], 403);
             return;
         }
