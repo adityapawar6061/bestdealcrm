@@ -93,7 +93,8 @@ class User
 
         $sql = "SELECT u.id, u.name, u.email, u.username, u.mobile, u.status, 
                        u.role_id, u.team_leader_id, u.last_login_at, u.created_at,
-                       r.name as role_name, tl.name as team_leader_name
+                       r.name as role_name, tl.name as team_leader_name,
+                       COALESCE(u.ip_restricted, 0) as ip_restricted
                 FROM users u 
                 LEFT JOIN roles r ON u.role_id = r.id 
                 LEFT JOIN users tl ON u.team_leader_id = tl.id 

@@ -148,6 +148,9 @@
                 <a href="/bestdealcrm/admin/roles" class="nav-link <?= str_contains($currentUri, '/admin/roles') ? 'active' : '' ?>">
                     <i class="bi bi-shield-lock"></i> Roles & Permissions
                 </a>
+                <a href="/bestdealcrm/admin/manage-ip" class="nav-link <?= str_contains($currentUri, '/manage-ip') ? 'active' : '' ?>">
+                    <i class="bi bi-globe"></i> Manage IP
+                </a>
                 
                 <div class="nav-section">Lead Management</div>
                 <a href="/bestdealcrm/admin/leads/upload" class="nav-link <?= str_contains($currentUri, '/leads/upload') ? 'active' : '' ?>">

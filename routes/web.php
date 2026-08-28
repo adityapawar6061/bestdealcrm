@@ -167,6 +167,17 @@ $router->middleware(['AuthMiddleware'], function ($router) {
             $router->get('/data-add', 'ServicesController', 'dataAddForm');
             $router->post('/data-add/submit', 'ServicesController', 'dataAddSubmit');
 
+            // IP Restriction Management
+            $router->get('/manage-ip', 'AdminController', 'manageIp');
+            $router->post('/manage-ip/add', 'AdminController', 'addIp');
+            $router->post('/manage-ip/remove', 'AdminController', 'removeIp');
+            $router->post('/manage-ip/toggle-user', 'AdminController', 'toggleUserIpRestriction');
+            $router->post('/manage-ip/bulk-toggle', 'AdminController', 'bulkToggleIpRestriction');
+            $router->get('/manage-ip/check', 'AdminController', 'checkCurrentIp');
+
+            // User IP restriction toggle
+            $router->post('/users/toggle-ip-restriction', 'AdminController', 'toggleUserIpRestriction');
+
             // Change Password (all roles)
             $router->post('/change-password', 'AdminController', 'changePassword');
 

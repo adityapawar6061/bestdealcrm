@@ -1842,4 +1842,218 @@ class AdminController extends BaseController
         if (!empty($errors)) $msg .= ' ' . count($errors) . ' errors.';
         $this->json(['success' => true, 'message' => $msg, 'errors' => $errors]);
     }
+
+    // ========== IP RESTRICTION MANAGEMENT ==========
+
+    private function ensureIpTables(): void
+    {
+        $this->db->query("CREATE TABLE IF NOT EXISTS `ip_whitelist` (
+            `id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+            `ip_address` VARCHAR(45) NOT NULL,
+            `description` VARCHAR(255) DEFAULT '',
+            `is_active` TINYINT(1) DEFAULT 1,
+            `added_by` INT UNSIGNED,
+            `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE KEY `unique_ip` (`ip_address`),
+            FOREIGN KEY (`added_by`) REFERENCES `users`(`id`) ON DELETE SET NULL
+        ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+        // Ensure ip_restricted column exists on users table
+        $colCheck = $this->db->fetchOne("SHOW COLUMNS FROM users LIKE 'ip_restricted'");
+        if (!$colCheck) {
+            $this->db->query("ALTER TABLE `users` ADD COLUMN `ip_restricted` TINYINT(1) DEFAULT 0 AFTER `status`");
+        }
+    }
+
+    public function manageIp(): void
+    {
+        $this->ensureIpTables();
+
+        $currentUser = currentUser();
+        $currentIp = $_SERVER['HTTP_X_FORWARDED_FOR'] ?? $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0';
+        if (strpos($currentIp, ',') !== false) {
+            $currentIp = trim(explode(',', $currentIp)[0]);
+        }
+
+        $whitelistedIps = $this->db->fetchAll(
+            "SELECT iw.*, u.name as added_by_name 
+             FROM ip_whitelist iw 
+             LEFT JOIN users u ON iw.added_by = u.id 
+             ORDER BY iw.created_at DESC"
+        );
+
+        // Count restricted users
+        $restrictedCount = $this->db->count('users', "ip_restricted = 1 AND status = 'active'");
+        $totalActiveUsers = $this->db->count('users', "status = 'active'");
+
+        $this->view('admin/manage_ip', [
+            'title'            => 'Manage IP Restriction',
+            'currentIp'        => $currentIp,
+            'whitelistedIps'   => $whitelistedIps,
+            'restrictedCount'  => $restrictedCount,
+            'totalActiveUsers' => $totalActiveUsers,
+        ]);
+    }
+
+    public function checkCurrentIp(): void
+    {
+        $currentIp = $_SERVER['HTTP_X_FORWARDED_FOR'] ?? $_SERVER['REMOTE_ADDR'] ?? '0.0.0.0';
+        if (strpos($currentIp, ',') !== false) {
+            $currentIp = trim(explode(',', $currentIp)[0]);
+        }
+        $this->json(['success' => true, 'ip' => $currentIp]);
+    }
+
+    public function addIp(): void
+    {
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            $this->json(['error' => 'Invalid request.'], 405);
+            return;
+        }
+
+        $this->ensureIpTables();
+
+        $ipAddress = trim($_POST['ip_address'] ?? '');
+        $description = trim($_POST['description'] ?? '');
+
+        if (empty($ipAddress)) {
+            $this->json(['error' => 'IP address is required.'], 400);
+            return;
+        }
+
+        // Validate IP (IPv4 or IPv6)
+        if (!filter_var($ipAddress, FILTER_VALIDATE_IP)) {
+            $this->json(['error' => 'Invalid IP address format.'], 400);
+            return;
+        }
+
+        // Check if already exists
+        $existing = $this->db->fetchOne(
+            "SELECT id FROM ip_whitelist WHERE ip_address = ?",
+            [$ipAddress]
+        );
+        if ($existing) {
+            $this->json(['error' => 'This IP address is already whitelisted.'], 400);
+            return;
+        }
+
+        $id = $this->db->insert('ip_whitelist', [
+            'ip_address'  => $ipAddress,
+            'description' => $description,
+            'is_active'   => 1,
+            'added_by'    => currentUser()['id'],
+            'created_at'  => nowIST(),
+        ]);
+
+        logActivity(currentUser()['id'], 'ip_added', 'ip_whitelist', (int)$id, null, $ipAddress);
+
+        $this->json(['success' => true, 'message' => "IP {$ipAddress} added to whitelist."]);
+    }
+
+    public function removeIp(): void
+    {
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            $this->json(['error' => 'Invalid request.'], 405);
+            return;
+        }
+
+        $this->ensureIpTables();
+
+        $id = (int)($_POST['ip_id'] ?? 0);
+        if (!$id) {
+            $this->json(['error' => 'Invalid IP ID.'], 400);
+            return;
+        }
+
+        $ip = $this->db->fetchOne("SELECT ip_address FROM ip_whitelist WHERE id = ?", [$id]);
+        if (!$ip) {
+            $this->json(['error' => 'IP not found.'], 404);
+            return;
+        }
+
+        $this->db->delete('ip_whitelist', 'id = ?', [$id]);
+        logActivity(currentUser()['id'], 'ip_removed', 'ip_whitelist', $id, $ip['ip_address'], null);
+
+        $this->json(['success' => true, 'message' => "IP {$ip['ip_address']} removed from whitelist."]);
+    }
+
+    public function toggleUserIpRestriction(): void
+    {
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            $this->json(['error' => 'Invalid request.'], 405);
+            return;
+        }
+
+        $userId = (int)($_POST['user_id'] ?? 0);
+        if (!$userId) {
+            $this->json(['error' => 'Invalid user ID.'], 400);
+            return;
+        }
+
+        $user = $this->db->fetchOne(
+            "SELECT u.id, u.name, r.name as role_name, u.ip_restricted 
+             FROM users u JOIN roles r ON u.role_id = r.id WHERE u.id = ?",
+            [$userId]
+        );
+        if (!$user) {
+            $this->json(['error' => 'User not found.'], 404);
+            return;
+        }
+
+        // Never restrict admins
+        if ($user['role_name'] === 'admin') {
+            $this->json(['error' => 'Admin users cannot be IP-restricted.'], 400);
+            return;
+        }
+
+        $newStatus = $user['ip_restricted'] ? 0 : 1;
+        $this->db->update('users', [
+            'ip_restricted' => $newStatus,
+            'updated_at'    => nowIST(),
+        ], 'id = ?', [$userId]);
+
+        $action = $newStatus ? 'restricted' : 'unrestricted';
+        logActivity(currentUser()['id'], 'user_ip_' . $action, 'user', $userId, null, $user['name']);
+
+        $this->json([
+            'success' => true,
+            'message' => "User {$user['name']} {$action}.",
+            'ip_restricted' => $newStatus,
+        ]);
+    }
+
+    public function bulkToggleIpRestriction(): void
+    {
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            $this->json(['error' => 'Invalid request.'], 405);
+            return;
+        }
+
+        $action = $_POST['action'] ?? ''; // 'restrict' or 'unrestrict'
+        if (!in_array($action, ['restrict', 'unrestrict'])) {
+            $this->json(['error' => 'Invalid action.'], 400);
+            return;
+        }
+
+        $this->ensureIpTables();
+
+        $restrictValue = ($action === 'restrict') ? 1 : 0;
+
+        // Update all active users EXCEPT admin role
+        $this->db->query(
+            "UPDATE users u JOIN roles r ON u.role_id = r.id 
+             SET u.ip_restricted = ?, u.updated_at = ? 
+             WHERE u.status = 'active' AND r.name != 'admin'",
+            [$restrictValue, nowIST()]
+        );
+
+        $count = $this->db->count('users', "ip_restricted = ? AND status = 'active'", [$restrictValue]);
+        logActivity(currentUser()['id'], 'bulk_ip_' . $action, 'user', null, null, "{$action}d all users");
+
+        $this->json([
+            'success' => true,
+            'message' => "All non-admin users {$action}d from IP restriction.",
+            'count' => $count,
+        ]);
+    }
 }

@@ -1,8 +1,31 @@
 <div class="page-header d-flex justify-content-between align-items-center">
     <h4><i class="bi bi-people me-2"></i>Manage Users</h4>
-    <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#createUserModal">
-        <i class="bi bi-plus me-1"></i> Create User
-    </button>
+    <div class="d-flex gap-2">
+        <a href="/bestdealcrm/admin/manage-ip" class="btn btn-outline-warning btn-sm">
+            <i class="bi bi-shield-lock me-1"></i> Manage IP
+        </a>
+        <button class="btn btn-primary btn-sm" data-bs-toggle="modal" data-bs-target="#createUserModal">
+            <i class="bi bi-plus me-1"></i> Create User
+        </button>
+    </div>
+</div>
+
+<!-- Bulk IP Restriction Actions -->
+<div class="table-container mb-3">
+    <div class="d-flex justify-content-between align-items-center">
+        <div>
+            <h6 class="fw-bold mb-1"><i class="bi bi-shield-lock me-2"></i>IP Restriction (Bulk)</h6>
+            <small class="text-muted">Restrict or unrestrict all non-admin users at once.</small>
+        </div>
+        <div class="d-flex gap-2">
+            <button class="btn btn-warning btn-sm" onclick="bulkIpToggle('restrict')">
+                <i class="bi bi-lock me-1"></i> Restrict All
+            </button>
+            <button class="btn btn-success btn-sm" onclick="bulkIpToggle('unrestrict')">
+                <i class="bi bi-unlock me-1"></i> Unrestrict All
+            </button>
+        </div>
+    </div>
 </div>
 
 <!-- Filters -->
@@ -36,11 +59,11 @@
     <div class="table-responsive">
         <table class="table table-hover table-sm align-middle mb-0">
             <thead class="table-light">
-                <tr><th>#</th><th>Name</th><th>Username</th><th>Email</th><th>Role</th><th>Status</th><th>Last Login</th><th>Actions</th></tr>
+                <tr><th>#</th><th>Name</th><th>Username</th><th>Email</th><th>Role</th><th>Status</th><th>IP</th><th>Last Login</th><th>Actions</th></tr>
             </thead>
             <tbody>
                 <?php if (empty($users['data'])): ?>
-                    <tr><td colspan="8" class="text-center py-4 text-muted">No users found.</td></tr>
+                    <tr><td colspan="9" class="text-center py-4 text-muted">No users found.</td></tr>
                 <?php else: ?>
                     <?php foreach ($users['data'] as $u): ?>
                     <tr>
@@ -50,6 +73,17 @@
                         <td><small><?= htmlspecialchars($u['email']) ?></small></td>
                         <td><span class="badge bg-secondary"><?= ucfirst(str_replace('_', ' ', $u['role_name'] ?? '')) ?></span></td>
                         <td><span class="badge bg-<?= $u['status'] === 'active' ? 'success' : 'danger' ?>"><?= ucfirst($u['status']) ?></span></td>
+                        <td>
+                            <?php if (($u['role_name'] ?? '') !== 'admin'): ?>
+                                <button class="btn btn-sm <?= ($u['ip_restricted'] ?? 0) ? 'btn-warning' : 'btn-outline-secondary' ?>" 
+                                        title="<?= ($u['ip_restricted'] ?? 0) ? 'IP Restricted (click to unrestrict)' : 'Click to restrict to whitelisted IPs' ?>" 
+                                        onclick="toggleUserIp(<?= $u['id'] ?>)">
+                                    <i class="bi bi-<?= ($u['ip_restricted'] ?? 0) ? 'lock-fill' : 'unlock' ?>"></i>
+                                </button>
+                            <?php else: ?>
+                                <span class="badge bg-secondary" title="Admin is always exempt"><i class="bi bi-shield-check"></i></span>
+                            <?php endif; ?>
+                        </td>
                         <td><small class="text-muted"><?= $u['last_login_at'] ? formatDate($u['last_login_at']) : 'Never' ?></small></td>
                         <td>
                             <div class="btn-group btn-group-sm">
@@ -163,6 +197,35 @@
 </div>
 
 <script>
+async function toggleUserIp(userId) {
+    var fd = new FormData();
+    fd.append('user_id', userId);
+    var result = await ajaxPost(BASE_URL + '/admin/users/toggle-ip-restriction', fd);
+    if (result && result.success) {
+        showToast(result.message, 'success');
+        setTimeout(function() { location.reload(); }, 600);
+    } else {
+        showToast(result.error || 'Error.', 'danger');
+    }
+}
+
+async function bulkIpToggle(action) {
+    var label = action === 'restrict' ? 'Restrict' : 'Unrestrict';
+    var warning = action === 'restrict'
+        ? 'Restrict ALL non-admin users to whitelisted IPs?'
+        : 'Remove IP restriction from ALL non-admin users?';
+    if (!confirm(warning)) return;
+    var fd = new FormData();
+    fd.append('action', action);
+    var result = await ajaxPost(BASE_URL + '/admin/manage-ip/bulk-toggle', fd);
+    if (result && result.success) {
+        showToast(result.message, 'success');
+        setTimeout(function() { location.reload(); }, 800);
+    } else {
+        showToast(result.error || 'Error.', 'danger');
+    }
+}
+
 async function createUser() {
     const form = document.getElementById('createUserForm');
     const formData = new FormData(form);
