@@ -248,10 +248,11 @@ class DynamicForm
     public function getSubmissionsForLead(int $leadId): array
     {
         return $this->db->fetchAll(
-            "SELECT fs.*, f.name as form_name, u.name as submitted_by_name 
+            "SELECT fs.*, f.name as form_name, u.name as submitted_by_name, r.name as role_name 
              FROM form_submissions fs 
              JOIN forms f ON fs.form_id = f.id 
              LEFT JOIN users u ON fs.submitted_by = u.id 
+             LEFT JOIN roles r ON u.role_id = r.id 
              WHERE fs.lead_id = ? 
              ORDER BY fs.created_at DESC",
             [$leadId]

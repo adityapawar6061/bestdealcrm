@@ -174,6 +174,42 @@ if (!function_exists('getFieldColClass')) {
     </form>
 </div>
 
+<!-- ===== UPLOADED DOCUMENTS ===== -->
+<?php if (!empty($documents)): ?>
+<div class="table-container mb-4">
+    <h6 class="fw-bold mb-3"><i class="bi bi-paperclip me-1"></i> Uploaded Documents</h6>
+    <div class="row g-2">
+        <?php foreach ($documents as $doc): ?>
+        <div class="col-md-3">
+            <div class="border rounded p-2 text-center">
+                <?php $ext = strtolower(pathinfo($doc['original_name'] ?? '', PATHINFO_EXTENSION)); ?>
+                <?php if (in_array($ext, ['jpg', 'jpeg', 'png', 'gif'])): ?>
+                    <a href="<?= BASE_URL ?>/public/uploads/documents/<?= $doc['lead_id'] ?>/<?= htmlspecialchars($doc['filename']) ?>" target="_blank">
+                        <img src="<?= BASE_URL ?>/public/uploads/documents/<?= $doc['lead_id'] ?>/<?= htmlspecialchars($doc['filename']) ?>" 
+                             alt="<?= htmlspecialchars($doc['original_name']) ?>" class="img-fluid rounded" style="max-height:100px">
+                    </a>
+                <?php elseif ($ext === 'pdf'): ?>
+                    <a href="<?= BASE_URL ?>/public/uploads/documents/<?= $doc['lead_id'] ?>/<?= htmlspecialchars($doc['filename']) ?>" target="_blank" class="text-decoration-none">
+                        <i class="bi bi-file-pdf text-danger" style="font-size:2rem"></i>
+                    </a>
+                <?php else: ?>
+                    <a href="<?= BASE_URL ?>/public/uploads/documents/<?= $doc['lead_id'] ?>/<?= htmlspecialchars($doc['filename']) ?>" target="_blank" class="text-decoration-none">
+                        <i class="bi bi-file-earmark text-primary" style="font-size:2rem"></i>
+                    </a>
+                <?php endif; ?>
+                <div class="mt-1">
+                    <small class="text-muted d-block text-truncate" style="max-width:150px" title="<?= htmlspecialchars($doc['original_name']) ?>">
+                        <?= htmlspecialchars($doc['original_name']) ?>
+                    </small>
+                    <small class="text-muted">by <?= htmlspecialchars($doc['uploaded_by_name'] ?? 'Unknown') ?></small>
+                </div>
+            </div>
+        </div>
+        <?php endforeach; ?>
+    </div>
+</div>
+<?php endif; ?>
+
 <!-- Action Buttons -->
 <div class="d-flex justify-content-between mb-4">
     <div>

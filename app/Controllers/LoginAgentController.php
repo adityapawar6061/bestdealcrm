@@ -132,7 +132,9 @@ class LoginAgentController extends BaseController
             }
         }
 
-        // 1. Get agent form submission (read-only)
+        // 1. Get agent form full structure (read-only)
+        $agentForm = null;
+        $agentFormValues = [];
         $agentSubmission = $this->db->fetchOne(
             "SELECT fs.* FROM form_submissions fs
              JOIN users u ON fs.submitted_by = u.id
@@ -141,28 +143,41 @@ class LoginAgentController extends BaseController
              ORDER BY fs.created_at DESC LIMIT 1",
             [$leadId]
         );
-        $agentValues = [];
         if ($agentSubmission) {
-            $agentValues = $this->db->fetchAll(
-                "SELECT fsv.*, ff.label, ff.field_name, ff.type, ff.field_type
-                 FROM form_submission_values fsv
-                 JOIN form_fields ff ON fsv.field_id = ff.id
-                 WHERE fsv.submission_id = ? ORDER BY ff.display_order",
+            // Get the form structure with sections
+            $agentForm = $this->formModel->getFullForm($agentSubmission['form_id']);
+            // Get submitted values keyed by field_id
+            $vals = $this->db->fetchAll(
+                "SELECT * FROM form_submission_values WHERE submission_id = ?",
                 [$agentSubmission['id']]
             );
+            foreach ($vals as $v) {
+                $agentFormValues[$v['field_id']] = $v['value'];
+            }
         }
 
-        // 2. Get all submissions for this lead (for reference)
+        // 2. Get documents uploaded for this lead
+        $documents = $this->db->fetchAll(
+            "SELECT d.*, u.name as uploaded_by_name
+             FROM documents d
+             LEFT JOIN users u ON d.uploaded_by = u.id
+             WHERE d.lead_id = ? ORDER BY d.created_at DESC",
+            [$leadId]
+        );
+
+        // 3. Get all submissions for this lead (for reference)
         $allSubmissions = $this->formModel->getSubmissionsForLead($leadId);
 
         $this->view('login_agent/pre_login', [
-            'title'          => 'Pre-Login Checklist',
-            'lead'           => $lead,
-            'form'           => $form,
-            'existingValues' => $existingValues,
-            'submission'     => $existing,
-            'agentValues'    => $agentValues,
-            'allSubmissions' => $allSubmissions,
+            'title'            => 'Pre-Login Checklist',
+            'lead'             => $lead,
+            'form'             => $form,
+            'existingValues'   => $existingValues,
+            'submission'       => $existing,
+            'agentForm'        => $agentForm,
+            'agentFormValues'  => $agentFormValues,
+            'documents'        => $documents,
+            'allSubmissions'   => $allSubmissions,
         ]);
     }
 
@@ -400,6 +415,15 @@ class LoginAgentController extends BaseController
             }
         }
 
+        // Get documents for this lead
+        $documents = $this->db->fetchAll(
+            "SELECT d.*, u.name as uploaded_by_name
+             FROM documents d
+             LEFT JOIN users u ON d.uploaded_by = u.id
+             WHERE d.lead_id = ? ORDER BY d.created_at DESC",
+            [$leadId]
+        );
+
         $this->view('login_agent/post_login', [
             'title'             => 'Post-Login Form',
             'lead'              => $lead,
@@ -408,6 +432,7 @@ class LoginAgentController extends BaseController
             'postForm'          => $postForm,
             'postLoginValues'   => $postLoginValues,
             'postLoginSubmission' => $postLoginSubmission,
+            'documents'         => $documents,
         ]);
     }
 
