@@ -192,7 +192,7 @@ function formatResponseDate($d) {
             <select name="workflow_stage" class="form-select form-select-sm">
                 <option value="">All Stages</option>
                 <?php
-                $stages = ['LEAD_ASSIGNED','AGENT_DRAFT','AGENT_SUBMITTED','ADMIN_REVIEW_1','RETURNED_TO_AGENT','LOGIN_APPROVED','COMPLETED','REJECTED'];
+                $stages = ['LEAD_ASSIGNED','AGENT_DRAFT','AGENT_SUBMITTED','ADMIN_REVIEW_1','LOGIN_AGENT_ASSIGNED','LOGIN_AGENT_DRAFT','LOGIN_AGENT_SUBMITTED','RETURNED_TO_AGENT','ADMIN_REVIEW_2','LOGIN_APPROVED','POST_LOGIN','UNDERWRITING','DISPATCH','COMPLETED','REJECTED'];
                 foreach ($stages as $stage):
                 ?>
                     <option value="<?= $stage ?>" <?= ($filters['workflow_stage'] ?? '') === $stage ? 'selected' : '' ?>>

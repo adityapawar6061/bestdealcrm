@@ -16,12 +16,13 @@ class AgentController extends BaseController
     public function dashboard(): void
     {
         $user = currentUser();
+        $agentWhere = '(assigned_to = ? OR (COALESCE(created_by, 0) = ? AND created_by IS NOT NULL))';
         $stats = [
-            'my_leads'      => $this->db->count('leads', 'assigned_to = ?', [$user['id']]),
-            'drafts'        => $this->db->count('leads', 'assigned_to = ? AND workflow_stage = ?', [$user['id'], 'AGENT_DRAFT']),
-            'submitted'     => $this->db->count('leads', 'assigned_to = ? AND workflow_stage = ?', [$user['id'], 'ADMIN_REVIEW_1']),
-            'returned'      => $this->db->count('leads', 'assigned_to = ? AND workflow_stage = ?', [$user['id'], 'RETURNED_TO_AGENT']),
-            'login_approved'=> $this->db->count('leads', 'assigned_to = ? AND workflow_stage = ?', [$user['id'], 'LOGIN_APPROVED']),
+            'my_leads'      => $this->db->count('leads', $agentWhere, [$user['id'], $user['id']]),
+            'drafts'        => $this->db->count('leads', "({$agentWhere}) AND workflow_stage = 'AGENT_DRAFT'", [$user['id'], $user['id']]),
+            'submitted'     => $this->db->count('leads', "({$agentWhere}) AND workflow_stage = 'ADMIN_REVIEW_1'", [$user['id'], $user['id']]),
+            'returned'      => $this->db->count('leads', "({$agentWhere}) AND workflow_stage = 'RETURNED_TO_AGENT'", [$user['id'], $user['id']]),
+            'login_approved'=> $this->db->count('leads', "({$agentWhere}) AND workflow_stage = 'LOGIN_APPROVED'", [$user['id'], $user['id']]),
         ];
 
         $recentLeads = $this->leadModel->getByAgent($user['id'], [], 1, 10);
@@ -55,7 +56,8 @@ class AgentController extends BaseController
         $leads = $this->leadModel->getByAgent($user['id'], $filters, $page);
 
         $userId = $user['id'];
-        $totalAssigned = $this->db->count('leads', 'assigned_to = ?', [$userId]);
+        $agentWhere = '(assigned_to = ' . (int)$userId . ' OR (COALESCE(created_by, 0) = ' . (int)$userId . ' AND created_by IS NOT NULL))';
+        $totalAssigned = $this->db->count('leads', $agentWhere);
         $pendingDisposition = $totalAssigned;
         $dispositionCounts = [];
 
@@ -65,14 +67,14 @@ class AgentController extends BaseController
             if ($hasAgentDisposition) $pendingParts[] = "(agent_disposition IS NULL OR agent_disposition = '')";
             $pendingSql = implode(' AND ', $pendingParts);
             $pendingDisposition = (int)$this->db->fetchOne(
-                "SELECT COUNT(*) as cnt FROM leads WHERE assigned_to = ? AND {$pendingSql}",
-                [$userId]
+                "SELECT COUNT(*) as cnt FROM leads WHERE {$agentWhere} AND {$pendingSql}",
+                []
             )['cnt'];
 
             $dispCol = $hasDisposition ? 'disposition' : 'agent_disposition';
             $dispositionCounts = $this->db->fetchAll(
-                "SELECT {$dispCol} as disposition, COUNT(*) as cnt FROM leads WHERE assigned_to = ? AND {$dispCol} IS NOT NULL AND {$dispCol} != '' GROUP BY {$dispCol} ORDER BY cnt DESC",
-                [$userId]
+                "SELECT {$dispCol} as disposition, COUNT(*) as cnt FROM leads WHERE {$agentWhere} AND {$dispCol} IS NOT NULL AND {$dispCol} != '' GROUP BY {$dispCol} ORDER BY cnt DESC",
+                []
             );
         }
 
@@ -130,6 +132,7 @@ class AgentController extends BaseController
         // Set lead data
         $data['workflow_stage'] = 'LEAD_ASSIGNED';
         $data['assigned_to'] = $user['id'];
+        $data['created_by'] = $user['id'];
         $data['created_at'] = nowIST();
 
         $leadId = $this->leadModel->create($data);
@@ -372,8 +375,8 @@ class AgentController extends BaseController
         $search = $_GET['search']['value'] ?? '';
         $stage = $_GET['workflow_stage'] ?? '';
 
-        $where = 'l.assigned_to = ?';
-        $params = [$user['id']];
+        $where = '(l.assigned_to = ? OR (COALESCE(l.created_by, 0) = ? AND l.created_by IS NOT NULL))';
+        $params = [$user['id'], $user['id']];
 
         if ($search) {
             $where .= ' AND (l.id = ? OR l.customer_name LIKE ? OR l.mobile_number LIKE ? OR l.pan_number LIKE ?)';
@@ -520,6 +523,7 @@ class AgentController extends BaseController
             'disposition' => 'VARCHAR(100) DEFAULT NULL',
             'agent_remark' => 'TEXT DEFAULT NULL',
             'actual_salary' => 'VARCHAR(50) DEFAULT NULL',
+            'created_by' => 'INT UNSIGNED DEFAULT NULL',
         ];
         $existingCols = $this->getExistingColumns('leads');
         foreach ($cols as $col => $def) {

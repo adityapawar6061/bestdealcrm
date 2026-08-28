@@ -821,7 +821,7 @@ class AdminController extends BaseController
 
         // Assign to login agent if approved
         if ($action === 'approve' && $assignedTo) {
-            $this->leadModel->assign($leadId, $assignedTo, $user['id'], $remark);
+            $this->leadModel->assign($leadId, $assignedTo, $user['id'], $remark, true);
             $this->db->update('leads', [
                 'workflow_stage' => $newStage,
                 'updated_at'     => nowIST(),
