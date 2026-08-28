@@ -12,7 +12,8 @@ class AuthMiddleware
                 echo json_encode(['error' => 'Unauthenticated', 'redirect' => '/login']);
                 exit;
             }
-            header('Location: /login');
+            $loginUrl = defined('BASE_URL') ? BASE_URL . '/login' : '/login';
+            header('Location: ' . $loginUrl);
             exit;
         }
 
@@ -78,7 +79,8 @@ class AuthMiddleware
                     exit;
                 }
                 setFlash('error', 'Access denied. Your IP (' . $currentIp . ') is not authorized. Please contact your administrator.');
-                header('Location: /login');
+                $loginUrl = defined('BASE_URL') ? BASE_URL . '/login' : '/login';
+                header('Location: ' . $loginUrl);
                 exit;
             }
         } catch (\Exception $e) {
