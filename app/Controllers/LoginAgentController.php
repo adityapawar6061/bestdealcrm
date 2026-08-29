@@ -139,7 +139,7 @@ class LoginAgentController extends BaseController
             "SELECT fs.* FROM form_submissions fs
              JOIN users u ON fs.submitted_by = u.id
              JOIN roles r ON u.role_id = r.id
-             WHERE fs.lead_id = ? AND r.name = 'agent'
+             WHERE fs.lead_id = ? AND r.name = 'agent' AND fs.status = 'submitted'
              ORDER BY fs.created_at DESC LIMIT 1",
             [$leadId]
         );
@@ -176,6 +176,7 @@ class LoginAgentController extends BaseController
             'submission'       => $existing,
             'agentForm'        => $agentForm,
             'agentFormValues'  => $agentFormValues,
+            'agentSubmission'  => $agentSubmission,
             'documents'        => $documents,
             'allSubmissions'   => $allSubmissions,
         ]);
@@ -347,49 +348,56 @@ class LoginAgentController extends BaseController
             return;
         }
 
-        // 1. Get agent form submission (read-only)
+        // 1. Get agent form submission (read-only) — full structure like pre-login page
+        $agentForm = null;
+        $agentFormValues = [];
         $agentSubmission = $this->db->fetchOne(
             "SELECT fs.* FROM form_submissions fs
              JOIN users u ON fs.submitted_by = u.id
              JOIN roles r ON u.role_id = r.id
-             WHERE fs.lead_id = ? AND r.name = 'agent'
+             WHERE fs.lead_id = ? AND r.name = 'agent' AND fs.status = 'submitted'
              ORDER BY fs.created_at DESC LIMIT 1",
             [$leadId]
         );
-        $agentValues = [];
         if ($agentSubmission) {
+            $agentForm = $this->formModel->getFullForm($agentSubmission['form_id']);
             $vals = $this->db->fetchAll(
-                "SELECT fsv.*, ff.label, ff.field_name, ff.type
-                 FROM form_submission_values fsv
-                 JOIN form_fields ff ON fsv.field_id = ff.id
-                 WHERE fsv.submission_id = ? ORDER BY ff.display_order",
+                "SELECT * FROM form_submission_values WHERE submission_id = ?",
                 [$agentSubmission['id']]
             );
             foreach ($vals as $v) {
-                $agentValues[] = $v;
+                $agentFormValues[$v['field_id']] = $v['value'];
             }
+            // Get agent name for display
+            $agentSubmitter = $this->db->fetchOne(
+                "SELECT u.name FROM users u WHERE u.id = ?",
+                [$agentSubmission['submitted_by']]
+            );
         }
 
-        // 2. Get pre-login checklist submission (read-only)
+        // 2. Get pre-login checklist submission (read-only) — full structure
+        $preLoginForm = null;
+        $preLoginFormValues = [];
         $preLoginSubmission = $this->db->fetchOne(
             "SELECT fs.* FROM form_submissions fs
              JOIN users u ON fs.submitted_by = u.id
-             WHERE fs.lead_id = ? AND u.id = ?
+             WHERE fs.lead_id = ? AND fs.status = 'submitted'
              ORDER BY fs.created_at DESC LIMIT 1",
             [$leadId, $user['id']]
         );
-        $preLoginValues = [];
         if ($preLoginSubmission) {
+            $preLoginForm = $this->formModel->getFullForm($preLoginSubmission['form_id']);
             $vals = $this->db->fetchAll(
-                "SELECT fsv.*, ff.label, ff.field_name, ff.type
-                 FROM form_submission_values fsv
-                 JOIN form_fields ff ON fsv.field_id = ff.id
-                 WHERE fsv.submission_id = ? ORDER BY ff.display_order",
+                "SELECT * FROM form_submission_values WHERE submission_id = ?",
                 [$preLoginSubmission['id']]
             );
             foreach ($vals as $v) {
-                $preLoginValues[] = $v;
+                $preLoginFormValues[$v['field_id']] = $v['value'];
             }
+            $preLoginSubmitter = $this->db->fetchOne(
+                "SELECT u.name FROM users u WHERE u.id = ?",
+                [$preLoginSubmission['submitted_by']]
+            );
         }
 
         // 3. Get post-login form (editable)
@@ -424,15 +432,24 @@ class LoginAgentController extends BaseController
             [$leadId]
         );
 
+        // Get all submissions for history
+        $allSubmissions = $this->formModel->getSubmissionsForLead($leadId);
+
         $this->view('login_agent/post_login', [
-            'title'             => 'Post-Login Form',
-            'lead'              => $lead,
-            'agentValues'       => $agentValues,
-            'preLoginValues'    => $preLoginValues,
-            'postForm'          => $postForm,
-            'postLoginValues'   => $postLoginValues,
-            'postLoginSubmission' => $postLoginSubmission,
-            'documents'         => $documents,
+            'title'              => 'Post-Login Form',
+            'lead'               => $lead,
+            // Agent form (full structure)
+            'agentForm'          => $agentForm,
+            'agentFormValues'    => $agentFormValues,
+            // Pre-login (full structure)
+            'preLoginForm'       => $preLoginForm,
+            'preLoginFormValues' => $preLoginFormValues,
+            // Post-login editable
+            'postForm'           => $postForm,
+            'postLoginValues'    => $postLoginValues,
+            'postLoginSubmission'=> $postLoginSubmission,
+            'documents'          => $documents,
+            'allSubmissions'     => $allSubmissions,
         ]);
     }
 

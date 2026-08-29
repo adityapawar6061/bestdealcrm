@@ -267,6 +267,8 @@ $router->middleware(['AuthMiddleware'], function ($router) {
         $router->get('/cases', 'UnderwritingController', 'cases');
         $router->get('/cases/{id}', 'UnderwritingController', 'caseDetail');
         $router->post('/cases/process', 'UnderwritingController', 'processCase');
+        $router->post('/cases/save-draft', 'UnderwritingController', 'saveFormDraft');
+        $router->post('/cases/submit-form', 'UnderwritingController', 'submitForm');
         
         // Notifications
         $router->get('/notifications', 'UnderwritingController', 'notifications');
@@ -281,6 +283,8 @@ $router->middleware(['AuthMiddleware'], function ($router) {
         $router->get('/cases', 'DispatchController', 'cases');
         $router->get('/cases/{id}', 'DispatchController', 'caseDetail');
         $router->post('/cases/process', 'DispatchController', 'processCase');
+        $router->post('/cases/save-draft', 'DispatchController', 'saveFormDraft');
+        $router->post('/cases/submit-form', 'DispatchController', 'submitForm');
         
         // Notifications
         $router->get('/notifications', 'DispatchController', 'notifications');
