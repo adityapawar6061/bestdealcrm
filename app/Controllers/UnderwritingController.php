@@ -64,16 +64,23 @@ class UnderwritingController extends BaseController
         $formModel = new \Models\DynamicForm();
 
         // Helper: get form submission with full structure
-        $getFormWithValues = function($leadId, $roleName = null, $formCode = null) use ($formModel) {
+        $getFormWithValues = function($leadId, $roleName = null, $workflowStage = null) use ($formModel) {
+            // Find form_id first by workflow_stage (avoids needing f.code column)
+            $formId = null;
+            if ($workflowStage) {
+                $forms = $formModel->getFormsByStage($workflowStage);
+                if (!empty($forms)) $formId = $forms[0]['id'];
+            }
+
             $where = 'fs.lead_id = ? AND fs.status = \'submitted\'';
             $params = [$leadId];
             if ($roleName) {
                 $where .= ' AND r.name = ?';
                 $params[] = $roleName;
             }
-            if ($formCode) {
-                $where .= ' AND f.code = ?';
-                $params[] = $formCode;
+            if ($formId) {
+                $where .= ' AND fs.form_id = ?';
+                $params[] = $formId;
             }
             $submission = $this->db->fetchOne(
                 "SELECT fs.*, u.name as submitted_by_name, r.name as role_name
@@ -99,10 +106,10 @@ class UnderwritingController extends BaseController
         [$agentForm, $agentFormValues, $agentName, $agentRole] = $getFormWithValues($id, 'agent');
 
         // 2. Pre-login checklist (full structure, read-only)
-        [$preLoginForm, $preLoginFormValues, $preLoginName, $preLoginRole] = $getFormWithValues($id, null, 'PRE_LOGIN_CHECKLIST');
+        [$preLoginForm, $preLoginFormValues, $preLoginName, $preLoginRole] = $getFormWithValues($id, null, 'LOGIN_AGENT_DRAFT');
 
         // 3. Post-login form (full structure, read-only)
-        [$postLoginForm, $postLoginFormValues, $postLoginName, $postLoginRole] = $getFormWithValues($id, null, 'POST_LOGIN_FORM');
+        [$postLoginForm, $postLoginFormValues, $postLoginName, $postLoginRole] = $getFormWithValues($id, null, 'POST_LOGIN');
 
         // 4. Underwriting form (editable)
         $uwForms = $formModel->getFormsByStage('UNDERWRITING');
