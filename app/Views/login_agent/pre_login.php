@@ -66,7 +66,22 @@ function renderReadOnlyField($field, $value) {
             return $html;
         case 'file':
         case 'image':
-            $html .= '<div class="form-control form-control-sm bg-light">' . ($val === '—' ? '—' : '<a href="' . BASE_URL . '/public/uploads/documents/' . ($field['lead_id'] ?? '') . '/' . $val . '" target="_blank">' . $val . '</a>') . '</div>';
+            if ($val === '—' || empty($value)) {
+                $html .= '<div class="form-control form-control-sm bg-light text-muted">—</div>';
+            } else {
+                $uploadDir = '/public/uploads/documents/';
+                $html .= '<div class="form-control form-control-sm bg-light">';
+                $html .= '<a href="' . BASE_URL . $uploadDir . $val . '" target="_blank" class="text-decoration-none">';
+                $ext = strtolower(pathinfo($val, PATHINFO_EXTENSION));
+                if (in_array($ext, ['jpg', 'jpeg', 'png', 'gif'])) {
+                    $html .= '<img src="' . BASE_URL . $uploadDir . $val . '" style="max-height:60px" class="rounded me-1"> ';
+                } elseif ($ext === 'pdf') {
+                    $html .= '<i class="bi bi-file-pdf text-danger me-1"></i>';
+                } else {
+                    $html .= '<i class="bi bi-file-earmark me-1"></i>';
+                }
+                $html .= htmlspecialchars($val) . '</a></div>';
+            }
             return $html;
         case 'date':
             $html .= '<input type="text" class="form-control form-control-sm bg-light" value="' . $val . '" readonly>';

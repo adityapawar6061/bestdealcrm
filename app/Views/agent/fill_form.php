@@ -168,6 +168,7 @@ function getFieldColClass($field, $sectionLayout = 2) {
                             <?php if ($field['required'] && !$fieldReadOnly): ?><span class="text-danger">*</span><?php endif; ?>
                         </label>
                         <textarea name="<?= $fieldName ?>" class="form-control form-control-sm <?= $roClass ?>" rows="3" <?= $fieldReadOnly ? '' : ($field['required'] ? 'required' : '') ?> <?= $roAttr ?> placeholder="<?= htmlspecialchars($field['placeholder'] ?? '') ?>"><?= htmlspecialchars($value) ?></textarea>
+                        <?php if ($fieldReadOnly && $value): ?><input type="hidden" name="<?= $fieldName ?>" value="<?= htmlspecialchars($value) ?>"><?php endif; ?>
                     <?php elseif ($field['type'] === 'dropdown'): ?>
                         <label class="form-label small fw-semibold">
                             <?= htmlspecialchars($field['label']) ?>
@@ -218,18 +219,21 @@ function getFieldColClass($field, $sectionLayout = 2) {
                             <?php if ($field['required'] && !$fieldReadOnly): ?><span class="text-danger">*</span><?php endif; ?>
                         </label>
                         <input type="date" name="<?= $fieldName ?>" class="form-control form-control-sm <?= $roClass ?>" value="<?= htmlspecialchars($value) ?>" <?= $fieldReadOnly ? $roAttr : ($field['required'] ? 'required' : '') ?>>
+                        <?php if ($fieldReadOnly && $value): ?><input type="hidden" name="<?= $fieldName ?>" value="<?= htmlspecialchars($value) ?>"><?php endif; ?>
                     <?php elseif ($field['type'] === 'number' || $field['type'] === 'decimal'): ?>
                         <label class="form-label small fw-semibold">
                             <?= htmlspecialchars($field['label']) ?>
                             <?php if ($field['required'] && !$fieldReadOnly): ?><span class="text-danger">*</span><?php endif; ?>
                         </label>
                         <input type="number" name="<?= $fieldName ?>" class="form-control form-control-sm <?= $roClass ?>" value="<?= htmlspecialchars($value) ?>" <?= $fieldReadOnly ? $roAttr : ($field['required'] ? 'required' : '') ?> step="<?= $field['type'] === 'decimal' ? '0.01' : '1' ?>" placeholder="<?= htmlspecialchars($field['placeholder'] ?? '') ?>">
+                        <?php if ($fieldReadOnly && $value): ?><input type="hidden" name="<?= $fieldName ?>" value="<?= htmlspecialchars($value) ?>"><?php endif; ?>
                     <?php else: ?>
                         <label class="form-label small fw-semibold">
                             <?= htmlspecialchars($field['label']) ?>
                             <?php if ($field['required'] && !$fieldReadOnly): ?><span class="text-danger">*</span><?php endif; ?>
                         </label>
                         <input type="<?= $field['type'] === 'mobile' ? 'tel' : $field['type'] ?>" name="<?= $fieldName ?>" class="form-control form-control-sm <?= $roClass ?>" value="<?= htmlspecialchars($value) ?>" <?= $fieldReadOnly ? $roAttr : ($field['required'] ? 'required' : '') ?> placeholder="<?= htmlspecialchars($field['placeholder'] ?? '') ?>">
+                        <?php if ($fieldReadOnly && $value): ?><input type="hidden" name="<?= $fieldName ?>" value="<?= htmlspecialchars($value) ?>"><?php endif; ?>
                     <?php endif; ?>
                 </div>
             <?php endforeach; ?>
