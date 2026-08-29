@@ -33,7 +33,7 @@ if (!function_exists('renderReadOnlyField')) {
         $label = htmlspecialchars($field['label'] ?? '');
         $fieldType = $field['field_type'] ?? 'field';
         $val = htmlspecialchars($value ?? '');
-        if (empty($val) || $val === '0000-00-00 00:00:00' || $val === '0000-00-00') $val = '';
+        $isEmpty = empty($val) || $val === '0000-00-00 00:00:00' || $val === '0000-00-00';
 
         $html = '<label class="form-label small fw-semibold">' . $label;
         if (!empty($field['required'])) $html .= ' <span class="text-danger">*</span>';
@@ -47,11 +47,12 @@ if (!function_exists('renderReadOnlyField')) {
             return '<h6 class="text-dark fw-semibold mt-2 mb-1" style="font-size:0.95rem">' . $label . '</h6>';
         }
 
-        $dispVal = $val ?: '<span class="text-muted">—</span>';
+        // Helper: dash display for empty values (never put raw HTML in value attributes)
+        $dashHtml = '<span class="text-muted">—</span>';
 
         switch ($type) {
             case 'textarea':
-                $html .= '<div class="form-control form-control-sm bg-light" style="min-height:60px;white-space:pre-wrap">' . $dispVal . '</div>';
+                $html .= '<div class="form-control form-control-sm bg-light" style="min-height:60px;white-space:pre-wrap">' . ($isEmpty ? $dashHtml : $val) . '</div>';
                 return $html;
 
             case 'dropdown':
@@ -66,7 +67,11 @@ if (!function_exists('renderReadOnlyField')) {
                         }
                     }
                 }
-                $html .= '<input type="text" class="form-control form-control-sm bg-light" value="' . ($displayVal ?: $dispVal) . '" readonly>';
+                if ($isEmpty || !$displayVal) {
+                    $html .= '<div class="form-control form-control-sm bg-light">' . $dashHtml . '</div>';
+                } else {
+                    $html .= '<input type="text" class="form-control form-control-sm bg-light" value="' . $displayVal . '" readonly>';
+                }
                 return $html;
 
             case 'radio':
@@ -86,7 +91,7 @@ if (!function_exists('renderReadOnlyField')) {
 
             case 'file':
             case 'image':
-                if (empty($value)) {
+                if ($isEmpty) {
                     $html .= '<div class="form-control form-control-sm bg-light text-muted">—</div>';
                 } else {
                     $uploadDir = BASE_URL . '/public/uploads/documents/' . ($field['_lead_id'] ?? '') . '/';
@@ -105,16 +110,28 @@ if (!function_exists('renderReadOnlyField')) {
                 return $html;
 
             case 'date':
-                $html .= '<input type="text" class="form-control form-control-sm bg-light" value="' . $dispVal . '" readonly>';
+                if ($isEmpty) {
+                    $html .= '<div class="form-control form-control-sm bg-light">' . $dashHtml . '</div>';
+                } else {
+                    $html .= '<input type="text" class="form-control form-control-sm bg-light" value="' . $val . '" readonly>';
+                }
                 return $html;
 
             case 'number':
             case 'decimal':
-                $html .= '<input type="text" class="form-control form-control-sm bg-light" value="' . $dispVal . '" readonly>';
+                if ($isEmpty) {
+                    $html .= '<div class="form-control form-control-sm bg-light">' . $dashHtml . '</div>';
+                } else {
+                    $html .= '<input type="text" class="form-control form-control-sm bg-light" value="' . $val . '" readonly>';
+                }
                 return $html;
 
             default:
-                $html .= '<input type="text" class="form-control form-control-sm bg-light" value="' . $dispVal . '" readonly>';
+                if ($isEmpty) {
+                    $html .= '<div class="form-control form-control-sm bg-light">' . $dashHtml . '</div>';
+                } else {
+                    $html .= '<input type="text" class="form-control form-control-sm bg-light" value="' . $val . '" readonly>';
+                }
                 return $html;
         }
     }
@@ -131,10 +148,14 @@ if (!function_exists('renderReadOnlyField')) {
 if (!function_exists('renderFormSectionReadonly')) {
     function renderFormSectionReadonly($section, $values = [], $leadId = 0, $submittedByName = '', $submittedByRole = '') {
         $sectionLayout = $section['column_layout'] ?? 2;
+        $sectionName = $section['name'] ?? '';
+        $isAdminSection = stripos($sectionName, 'admin') !== false;
+        
         echo '<div class="mb-4">';
-        echo '<h6 class="small fw-bold text-muted mb-2 border-bottom pb-1">';
-        echo '<i class="bi bi-card-list me-1"></i> ' . htmlspecialchars($section['name']);
-        echo ' <small class="fw-normal">(' . (int)$sectionLayout . ' column' . ($sectionLayout > 1 ? 's' : '') . ')</small>';
+        echo '<h6 class="small fw-bold mb-2 border-bottom pb-1">';
+        echo '<i class="bi bi-card-list me-1"></i> ' . htmlspecialchars($sectionName);
+        echo ' <small class="fw-normal text-muted">(' . (int)$sectionLayout . ' column' . ($sectionLayout > 1 ? 's' : '') . ')</small>';
+        if ($isAdminSection) echo ' <span class="badge bg-secondary ms-1" style="font-size:0.6rem">READ ONLY</span>';
         echo '</h6>';
         echo '<div class="row g-3">';
         foreach ($section['fields'] as $field) {
