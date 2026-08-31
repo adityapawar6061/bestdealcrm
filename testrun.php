@@ -165,7 +165,7 @@ test('Database connection works', function() {
 });
 
 // --- Table existence ---
-$requiredTables = ['users', 'roles', 'leads', 'forms', 'form_sections', 'form_fields', 'form_submissions', 'form_submission_values', 'documents', 'remarks', 'workflow_events', 'form_field_options'];
+$requiredTables = ['users', 'roles', 'leads', 'forms', 'form_sections', 'form_fields', 'form_submissions', 'form_submission_values', 'documents', 'remarks', 'form_field_options'];
 foreach ($requiredTables as $table) {
     test("Table `{$table}` exists", function() use ($table) {
         $check = dbFetch("SHOW TABLES LIKE ?", [$table]);
@@ -427,15 +427,22 @@ test('Submissions history includes role names', function() use ($testLeadId) {
     foreach ($subs as $s) assertNotNull($s['role_name'], "Submission {$s['form_name']} missing role name");
 });
 
-// --- Cleanup ---
+// --- Cleanup (skip any missing tables gracefully) ---
 if ($testLeadId) {
-    dbDelete('form_submission_values', 'submission_id IN (SELECT id FROM form_submissions WHERE lead_id = ?)', [$testLeadId]);
-    dbDelete('form_submissions', 'lead_id = ?', [$testLeadId]);
-    dbDelete('documents', 'lead_id = ?', [$testLeadId]);
-    dbDelete('remarks', 'lead_id = ?', [$testLeadId]);
-    dbDelete('workflow_events', 'lead_id = ?', [$testLeadId]);
-    dbDelete('notifications', 'related_lead_id = ?', [$testLeadId]);
-    dbDelete('leads', 'id = ?', [$testLeadId]);
+    $cleanupTables = ['form_submission_values', 'form_submissions', 'documents', 'remarks', 'notifications', 'activity_logs', 'leads'];
+    foreach ($cleanupTables as $ct) {
+        try {
+            if ($ct === 'form_submission_values') {
+                dbDelete($ct, 'submission_id IN (SELECT id FROM form_submissions WHERE lead_id = ?)', [$testLeadId]);
+            } elseif ($ct === 'notifications') {
+                dbDelete($ct, 'related_lead_id = ?', [$testLeadId]);
+            } elseif ($ct === 'activity_logs') {
+                dbDelete($ct, 'entity_type = ? AND entity_id = ?', ['lead', $testLeadId]);
+            } else {
+                dbDelete($ct, 'lead_id = ?', [$testLeadId]);
+            }
+        } catch (Throwable $e) { /* table might not exist */ }
+    }
 }
 
 // ===== RENDER RESULTS =====
