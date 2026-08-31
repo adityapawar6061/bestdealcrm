@@ -145,6 +145,11 @@ function getFieldColClass($field, $sectionLayout = 2) {
                     $value = currentUser()['name'];
                 }
 
+                // Auto-select disposition to 'lead'
+                if (empty($value) && (strpos($fn, 'dispostion') !== false || strpos($fn, 'disposition') !== false || strpos($fl, 'dispostion') !== false || strpos($fl, 'disposition') !== false)) {
+                    $value = 'lead';
+                }
+
                 // Determine if this field should be read-only
                 $fieldReadOnly = false;
                 if ($isReadOnly) {

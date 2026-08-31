@@ -300,7 +300,11 @@ class AgentController extends BaseController
         }
 
         // Process file uploads
-        $this->formModel->processFileUploads($leadId, $user['id'], $values);
+        try {
+            $this->formModel->processFileUploads($leadId, $user['id'], $values);
+        } catch (\Throwable $e) {
+            error_log('saveDraft file upload error: ' . $e->getMessage());
+        }
 
         $existing = $this->db->fetchOne(
             "SELECT id FROM form_submissions WHERE lead_id = ? AND submitted_by = ? AND status = 'draft'",
@@ -344,7 +348,11 @@ class AgentController extends BaseController
         }
 
         // Process file uploads
-        $this->formModel->processFileUploads($leadId, $user['id'], $values);
+        try {
+            $this->formModel->processFileUploads($leadId, $user['id'], $values);
+        } catch (\Throwable $e) {
+            error_log('submitForm file upload error: ' . $e->getMessage());
+        }
 
         $existing = $this->db->fetchOne(
             "SELECT id FROM form_submissions WHERE lead_id = ? AND submitted_by = ? AND status IN ('draft', 'submitted')",
