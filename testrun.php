@@ -7,8 +7,9 @@
  */
 
 error_reporting(E_ALL);
-ini_set('display_errors', '0');
+ini_set('display_errors', '1');
 ini_set('log_errors', '1');
+header('Content-Type: text/html; charset=utf-8');
 
 // ===== Direct DB Connection (no app bootstrap) =====
 $rootPath = __DIR__;
@@ -77,7 +78,7 @@ function dbInsert($table, $data) {
 }
 
 function dbUpdate($table, $data, $where, $whereParams = []) {
-    $sets = implode(', ', array_map(fn($k) => "{$k} = ?", array_keys($data)));
+    $sets = implode(', ', array_map(function($k) { return "{$k} = ?"; }, array_keys($data)));
     $allParams = array_merge(array_values($data), $whereParams);
     dbQuery("UPDATE {$table} SET {$sets} WHERE {$where}", $allParams);
 }
