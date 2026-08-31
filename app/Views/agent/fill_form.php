@@ -151,7 +151,7 @@ function getFieldColClass($field, $sectionLayout = 2) {
                     $fieldReadOnly = true;
                 } elseif ($isAdminSection) {
                     $fieldReadOnly = true;
-                } elseif (strpos($fn, 'agent_name') !== false || strpos($fn, 'product_type') !== false || strpos($fl, 'agent name') !== false || strpos($fl, 'product type') !== false) {
+                } elseif (strpos($fn, 'agent_name') !== false || strpos($fl, 'agent name') !== false) {
                     $fieldReadOnly = true;
                 }
 
@@ -243,13 +243,18 @@ function getFieldColClass($field, $sectionLayout = 2) {
 
     <!-- Actions -->
     <?php if ($isEditable): ?>
-    <div class="d-flex justify-content-end gap-2 mb-4">
-        <button type="button" class="btn btn-outline-warning" onclick="submitAgentForm('draft')">
-            <i class="bi bi-save me-1"></i> Save as Draft
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <button type="button" class="btn btn-outline-secondary btn-sm" onclick="fillTestData()">
+            <i class="bi bi-lightning me-1"></i> Fill Test Data
         </button>
-        <button type="button" class="btn btn-primary" onclick="submitAgentForm('submit')">
-            <i class="bi bi-send me-1"></i> Submit to Admin
-        </button>
+        <div class="d-flex gap-2">
+            <button type="button" class="btn btn-outline-warning" onclick="submitAgentForm('draft')">
+                <i class="bi bi-save me-1"></i> Save as Draft
+            </button>
+            <button type="button" class="btn btn-primary" onclick="submitAgentForm('submit')">
+                <i class="bi bi-send me-1"></i> Submit to Admin
+            </button>
+        </div>
     </div>
     <?php elseif ($isReadOnly): ?>
     <div class="alert alert-info d-flex align-items-center mb-4">
@@ -261,6 +266,72 @@ function getFieldColClass($field, $sectionLayout = 2) {
 <?php endif; ?>
 
 <script>
+function fillTestData() {
+    var pw = prompt('Enter password to fill test data:');
+    if (pw !== '123456') { alert('Wrong password.'); return; }
+
+    var form = document.getElementById('agentForm');
+    if (!form) return;
+
+    // Test data for each field type
+    var testValues = {
+        'text': 'Test Data',
+        'email': 'test@bestdealcrm.com',
+        'mobile': '9876543210',
+        'number': '42',
+        'decimal': '150000',
+        'date': '2026-01-15',
+        'textarea': 'This is test data filled automatically for testing purposes.'
+    };
+
+    var fields = form.querySelectorAll('input, select, textarea');
+    fields.forEach(function(el) {
+        if (el.disabled || el.readOnly || el.type === 'hidden' || el.type === 'file') return;
+        if (!el.name || !el.name.startsWith('form_data[')) return;
+
+        var type = el.tagName === 'SELECT' ? 'dropdown' : el.type;
+
+        switch (type) {
+            case 'text':
+            case 'email':
+            case 'mobile':
+            case 'url':
+                el.value = testValues[type] || 'Test Data';
+                break;
+            case 'number':
+            case 'decimal':
+                el.value = testValues[type] || '100';
+                break;
+            case 'date':
+                el.value = testValues['date'];
+                break;
+            case 'textarea':
+                el.value = testValues['textarea'];
+                break;
+            case 'dropdown':
+            case 'select-one':
+                if (el.options.length > 1) {
+                    el.selectedIndex = 1;
+                }
+                break;
+            case 'radio':
+                var firstRadio = el;
+                if (firstRadio.value.toLowerCase() === 'yes' || firstRadio.value.toLowerCase() === 'male') {
+                    firstRadio.checked = true;
+                }
+                break;
+            case 'checkbox':
+                el.checked = true;
+                break;
+        }
+
+        el.dispatchEvent(new Event('change', { bubbles: true }));
+        el.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+
+    alert('Test data filled! Now pick files for upload fields and submit.');
+}
+
 async function submitAgentForm(action) {
     const form = document.getElementById('agentForm');
     if (!form) return;
