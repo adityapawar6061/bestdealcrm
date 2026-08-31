@@ -149,6 +149,13 @@ class DispatchController extends BaseController
             [$id]
         );
 
+        // 9. Assigned agent name
+        $assignedAgentName = '';
+        if (!empty($lead['assigned_to'])) {
+            $assignedAgent = $this->db->fetchOne("SELECT name FROM users WHERE id = ?", [$lead['assigned_to']]);
+            $assignedAgentName = $assignedAgent ? $assignedAgent['name'] : '';
+        }
+
         $this->view('dispatch/case_detail', [
             'title'                 => 'Dispatch: Lead #' . $id,
             'lead'                  => $lead,
@@ -170,6 +177,7 @@ class DispatchController extends BaseController
             'documents'             => $documents,
             'allSubmissions'        => $allSubmissions,
             'remarks'               => $remarks,
+            'assignedAgentName'     => $assignedAgentName,
         ]);
     }
 

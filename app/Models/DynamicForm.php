@@ -50,15 +50,30 @@ class DynamicForm
         );
 
         foreach ($sections as $section) {
-            // Delete field options for fields in this section
+            // Delete field options and submission values for fields in this section
             $fields = $this->db->fetchAll(
                 "SELECT id FROM form_fields WHERE section_id = ?",
                 [$section['id']]
             );
-            foreach ($fields as $field) {
-                $this->db->delete('form_field_options', 'field_id = ?', [$field['id']]);
+            $fieldIds = array_column($fields, 'id');
+            if (!empty($fieldIds)) {
+                $placeholders = implode(',', array_fill(0, count($fieldIds), '?'));
+                $this->db->delete('form_field_options', "field_id IN ({$placeholders})", $fieldIds);
+                $this->db->query("DELETE FROM form_submission_values WHERE field_id IN ({$placeholders})", $fieldIds);
             }
             $this->db->delete('form_fields', 'section_id = ?', [$section['id']]);
+        }
+
+        // Delete submissions and their values for this form
+        $submissions = $this->db->fetchAll(
+            "SELECT id FROM form_submissions WHERE form_id = ?",
+            [$formId]
+        );
+        $subIds = array_column($submissions, 'id');
+        if (!empty($subIds)) {
+            $placeholders = implode(',', array_fill(0, count($subIds), '?'));
+            $this->db->query("DELETE FROM form_submission_values WHERE submission_id IN ({$placeholders})", $subIds);
+            $this->db->delete('form_submissions', 'form_id = ?', [$formId]);
         }
 
         $this->db->delete('form_sections', 'form_id = ?', [$formId]);

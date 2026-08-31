@@ -493,10 +493,14 @@ class FormBuilderController extends BaseController
             return;
         }
 
-        $this->formModel->deleteForm($formId);
-        logActivity(currentUser()['id'], 'form_deleted', 'form', $formId);
-
-        $this->json(['success' => true, 'message' => 'Form deleted permanently.']);
+        try {
+            $this->formModel->deleteForm($formId);
+            logActivity(currentUser()['id'], 'form_deleted', 'form', $formId);
+            $this->json(['success' => true, 'message' => 'Form deleted permanently.']);
+        } catch (\Throwable $e) {
+            error_log('deleteWithPassword error: ' . $e->getMessage());
+            $this->json(['error' => 'Delete failed: ' . $e->getMessage()], 500);
+        }
     }
 
     public function getFieldOptions(int $id): void

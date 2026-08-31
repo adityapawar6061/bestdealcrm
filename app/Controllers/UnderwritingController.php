@@ -148,6 +148,13 @@ class UnderwritingController extends BaseController
             [$id]
         );
 
+        // 8. Assigned agent name
+        $assignedAgentName = '';
+        if (!empty($lead['assigned_to'])) {
+            $assignedAgent = $this->db->fetchOne("SELECT name FROM users WHERE id = ?", [$lead['assigned_to']]);
+            $assignedAgentName = $assignedAgent ? $assignedAgent['name'] : '';
+        }
+
         $this->view('underwriting/case_detail', [
             'title'                => 'Underwriting: Lead #' . $id,
             'lead'                 => $lead,
@@ -166,6 +173,7 @@ class UnderwritingController extends BaseController
             'documents'            => $documents,
             'allSubmissions'       => $allSubmissions,
             'remarks'              => $remarks,
+            'assignedAgentName'    => $assignedAgentName,
         ]);
     }
 
@@ -213,17 +221,38 @@ class UnderwritingController extends BaseController
             $user['id'], 'underwriting', $remark, $action
         );
 
-        // If approved, assign to dispatch agent
+        // If approved, assign to a dispatch agent
         if ($action === 'approve') {
-            $this->db->update('leads', [
+            // Find an available dispatch agent
+            $dispatchAgent = $this->db->fetchOne(
+                "SELECT u.id FROM users u JOIN roles r ON u.role_id = r.id
+                 WHERE r.name = 'dispatch' AND u.status = 'active'
+                 ORDER BY (SELECT COUNT(*) FROM leads l WHERE l.assigned_to = u.id AND l.workflow_stage = 'DISPATCH') ASC
+                 LIMIT 1"
+            );
+            $assignedTo = $dispatchAgent ? $dispatchAgent['id'] : null;
+
+            $updateData = [
                 'workflow_stage' => 'DISPATCH',
                 'updated_at'     => nowIST(),
-            ], 'id = ?', [$leadId]);
+            ];
+            if ($assignedTo) {
+                $updateData['assigned_to'] = $assignedTo;
+            }
+            $this->db->update('leads', $updateData, 'id = ?', [$leadId]);
 
             $this->workflowModel->transition(
                 $leadId, $newStage, 'DISPATCH',
                 $user['id'], 'underwriting', null, 'auto_assign_dispatch'
             );
+
+            // Notify the assigned dispatch agent
+            if ($assignedTo) {
+                $agentName = $dispatchAgent ? $this->db->fetchOne("SELECT name FROM users WHERE id = ?", [$assignedTo]) : null;
+                createNotification($assignedTo, 'New Case Assigned',
+                    "Lead #{$leadId} has been approved by underwriting and assigned to you for dispatch.",
+                    'info', $leadId);
+            }
         }
 
         // Notify admins

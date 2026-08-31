@@ -61,7 +61,7 @@ $workflowSteps = [
         <div class="col-md-2"><small class="text-muted d-block">Mobile</small><strong><?= htmlspecialchars($lead['mobile_number'] ?? '-') ?></strong></div>
         <div class="col-md-2"><small class="text-muted d-block">Location</small><strong><?= htmlspecialchars($lead['location'] ?? '-') ?></strong></div>
         <div class="col-md-2"><small class="text-muted d-block">Bank</small><strong><?= htmlspecialchars($lead['bank_name'] ?? '-') ?></strong></div>
-        <div class="col-md-2"><small class="text-muted d-block">Salary</small><strong><?= $lead['salary'] ? '₹' . number_format($lead['salary']) : '-' ?></strong></div>
+        <div class="col-md-2"><small class="text-muted d-block">Assigned To</small><strong><?= htmlspecialchars($assignedAgentName ?? '-') ?></strong></div>
         <div class="col-md-2"><small class="text-muted d-block">Stage</small><?= statusBadge($lead['workflow_stage']) ?></div>
     </div>
 </div>

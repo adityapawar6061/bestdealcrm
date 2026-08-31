@@ -380,10 +380,9 @@ class LoginAgentController extends BaseController
         $preLoginFormValues = [];
         $preLoginSubmission = $this->db->fetchOne(
             "SELECT fs.* FROM form_submissions fs
-             JOIN users u ON fs.submitted_by = u.id
              WHERE fs.lead_id = ? AND fs.status = 'submitted'
              ORDER BY fs.created_at DESC LIMIT 1",
-            [$leadId, $user['id']]
+            [$leadId]
         );
         if ($preLoginSubmission) {
             $preLoginForm = $this->formModel->getFullForm($preLoginSubmission['form_id']);

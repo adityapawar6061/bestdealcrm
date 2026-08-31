@@ -384,6 +384,7 @@
             </div>
             <div class="modal-body">
                 <p class="fw-bold text-danger">This will permanently delete this form, all sections, fields, and options.</p>
+                <div id="deleteFormError" class="alert alert-danger d-none mb-3" role="alert"></div>
                 <div class="mb-3">
                     <label class="form-label small fw-semibold">Enter password to confirm:</label>
                     <input type="password" id="deleteConfirmPassword" class="form-control" placeholder="Password">
@@ -408,6 +409,7 @@
             </div>
             <div class="modal-body">
                 <p class="fw-bold text-danger">This will permanently delete the field and all its submitted data.</p>
+                <div id="hardDeleteError" class="alert alert-danger d-none mb-3" role="alert"></div>
                 <div class="mb-3">
                     <label class="form-label small fw-semibold">Enter password to confirm:</label>
                     <input type="password" id="hardDeletePassword" class="form-control" placeholder="Password">
@@ -615,6 +617,7 @@ async function restoreField(fieldId) {
 function promptHardDelete(fieldId) {
     document.getElementById('hardDeleteFieldId').value = fieldId;
     document.getElementById('hardDeletePassword').value = '';
+    document.getElementById('hardDeleteError').classList.add('d-none');
     bootstrap.Modal.getInstance(document.getElementById('hiddenFieldsModal')).hide();
     new bootstrap.Modal(document.getElementById('hardDeleteModal')).show();
 }
@@ -622,8 +625,10 @@ function promptHardDelete(fieldId) {
 async function confirmHardDelete() {
     var fieldId = document.getElementById('hardDeleteFieldId').value;
     var password = document.getElementById('hardDeletePassword').value;
-    if (!password) { showToast('Enter the password.', 'warning'); return; }
+    var errDiv = document.getElementById('hardDeleteError');
+    if (!password) { errDiv.textContent = 'Enter the password.'; errDiv.classList.remove('d-none'); return; }
 
+    errDiv.classList.add('d-none');
     var formData = new FormData();
     formData.append('password', password);
 
@@ -633,7 +638,8 @@ async function confirmHardDelete() {
         bootstrap.Modal.getInstance(document.getElementById('hardDeleteModal')).hide();
         location.reload();
     } else {
-        showToast(result.error || 'Failed.', 'danger');
+        errDiv.textContent = result.error || 'Delete failed. Please try again.';
+        errDiv.classList.remove('d-none');
     }
 }
 
@@ -749,14 +755,17 @@ async function saveFieldOptions() {
 function promptDeleteForm(formId) {
     document.getElementById('deleteFormId').value = formId;
     document.getElementById('deleteConfirmPassword').value = '';
+    document.getElementById('deleteFormError').classList.add('d-none');
     new bootstrap.Modal(document.getElementById('deleteFormModal')).show();
 }
 
 async function confirmDeleteForm() {
     var formId = document.getElementById('deleteFormId').value;
     var password = document.getElementById('deleteConfirmPassword').value;
-    if (!password) { showToast('Enter the password.', 'warning'); return; }
+    var errDiv = document.getElementById('deleteFormError');
+    if (!password) { errDiv.textContent = 'Enter the password.'; errDiv.classList.remove('d-none'); return; }
 
+    errDiv.classList.add('d-none');
     var formData = new FormData();
     formData.append('form_id', formId);
     formData.append('confirm_password', password);
@@ -767,7 +776,8 @@ async function confirmDeleteForm() {
         bootstrap.Modal.getInstance(document.getElementById('deleteFormModal')).hide();
         setTimeout(function() { window.location.href = '/bestdealcrm/admin/form-builder'; }, 1000);
     } else {
-        showToast(result.error || 'Failed.', 'danger');
+        errDiv.textContent = result.error || 'Delete failed. Please try again.';
+        errDiv.classList.remove('d-none');
     }
 }
 
