@@ -1,36 +1,65 @@
+<?php
+$workflowSteps = [
+    'LEAD_UPLOADED'       => ['label' => 'Lead Uploaded',  'icon' => 'bi-cloud-upload'],
+    'LEAD_ASSIGNED'       => ['label' => 'Assigned',        'icon' => 'bi-person-check'],
+    'AGENT_DRAFT'         => ['label' => 'Agent Draft',     'icon' => 'bi-pencil-square'],
+    'AGENT_SUBMITTED'     => ['label' => 'Submitted',       'icon' => 'bi-send'],
+    'ADMIN_REVIEW_1'      => ['label' => 'Admin Review',    'icon' => 'bi-clipboard-check'],
+    'LOGIN_AGENT_ASSIGNED'=> ['label' => 'Login Agent',     'icon' => 'bi-person-badge'],
+    'ADMIN_REVIEW_2'      => ['label' => 'Review 2',        'icon' => 'bi-clipboard2-check'],
+    'LOGIN_APPROVED'      => ['label' => 'Approved',        'icon' => 'bi-check-circle'],
+    'UNDERWRITING'        => ['label' => 'Underwriting',    'icon' => 'bi-file-earmark-check'],
+    'DISPATCH'            => ['label' => 'Dispatch',        'icon' => 'bi-truck'],
+    'COMPLETED'           => ['label' => 'Completed',       'icon' => 'bi-trophy'],
+];
+?>
+
 <div class="page-header d-flex justify-content-between align-items-center">
     <div>
-        <h4><i class="bi bi-clipboard2-check me-2"></i>Review Lead #<?= $lead['id'] ?> (Stage 2)</h4>
+        <h4><i class="bi bi-clipboard2-check me-2"></i>Review Lead #<?= $lead['id'] ?></h4>
+        <small class="text-muted"><?= htmlspecialchars($lead['customer_name'] ?? '') ?> | <?= htmlspecialchars($lead['mobile_number'] ?? '') ?> | <?= statusBadge($lead['workflow_stage']) ?></small>
     </div>
-    <a href="/bestdealcrm/admin/review2" class="btn btn-outline-secondary btn-sm">
-        <i class="bi bi-arrow-left me-1"></i> Back
-    </a>
+    <a href="<?= BASE_URL ?>/admin/review2" class="btn btn-outline-secondary btn-sm"><i class="bi bi-arrow-left me-1"></i> Back</a>
+</div>
+
+<!-- Workflow Progress -->
+<div class="table-container mb-4 p-3">
+    <div class="d-flex align-items-center flex-wrap gap-1" style="overflow-x:auto">
+        <?php
+        $stepKeys = array_keys($workflowSteps);
+        $currentIdx = array_search($lead['workflow_stage'], $stepKeys);
+        if ($currentIdx === false) $currentIdx = 0;
+        foreach ($workflowSteps as $stage => $info):
+            $sIdx = array_search($stage, $stepKeys);
+            $isActive = ($stage === $lead['workflow_stage']);
+            $isCompleted = ($sIdx < $currentIdx);
+        ?>
+            <div class="text-center flex-shrink-0" style="min-width:70px">
+                <div class="rounded-circle d-inline-flex align-items-center justify-content-center mb-1 <?= $isActive ? 'bg-primary text-white' : ($isCompleted ? 'bg-success text-white' : 'bg-light text-muted') ?>" style="width:32px;height:32px;font-size:0.75rem">
+                    <i class="bi <?= $info['icon'] ?>"></i>
+                </div>
+                <div class="small <?= $isActive ? 'fw-bold text-primary' : ($isCompleted ? 'text-success' : 'text-muted') ?>" style="font-size:0.6rem;line-height:1.1"><?= $info['label'] ?></div>
+            </div>
+            <?php if ($sIdx < count($stepKeys) - 1): ?>
+                <div class="flex-shrink-0" style="width:16px;height:2px;background:<?= $isCompleted ? '#22c55e' : '#e2e8f0' ?>;margin-bottom:14px"></div>
+            <?php endif; ?>
+        <?php endforeach; ?>
+    </div>
+</div>
+
+<!-- Lead Info Bar -->
+<div class="table-container mb-4 p-3">
+    <div class="row g-3">
+        <div class="col-md-3"><small class="text-muted d-block">Customer</small><strong><?= htmlspecialchars($lead['customer_name'] ?? '-') ?></strong></div>
+        <div class="col-md-3"><small class="text-muted d-block">Mobile</small><strong><?= htmlspecialchars($lead['mobile_number'] ?? '-') ?></strong></div>
+        <div class="col-md-3"><small class="text-muted d-block">Bank</small><strong><?= htmlspecialchars($lead['bank_name'] ?? '-') ?></strong></div>
+        <div class="col-md-3"><small class="text-muted d-block">Stage</small><?= statusBadge($lead['workflow_stage']) ?></div>
+    </div>
 </div>
 
 <div class="row g-4">
     <div class="col-lg-8">
-        <?php if (!empty($submissions)): ?>
-        <?php foreach ($submissions as $sub): ?>
-        <div class="table-container mb-4">
-            <h6 class="fw-bold mb-2"><?= htmlspecialchars($sub['form_name'] ?? 'Form') ?></h6>
-            <small class="text-muted">By <?= htmlspecialchars($sub['submitted_by_name'] ?? '') ?> on <?= formatDate($sub['created_at']) ?></small>
-            <?php
-            $values = $this->db->fetchAll(
-                "SELECT fsv.*, ff.label, ff.type FROM form_submission_values fsv JOIN form_fields ff ON fsv.field_id = ff.id WHERE fsv.submission_id = ?",
-                [$sub['id']]
-            );
-            ?>
-            <div class="row g-2 mt-2">
-                <?php foreach ($values as $v): ?>
-                <div class="col-md-4">
-                    <small class="text-muted d-block"><?= htmlspecialchars($v['label']) ?></small>
-                    <strong class="small"><?= htmlspecialchars($v['value'] ?? '-') ?></strong>
-                </div>
-                <?php endforeach; ?>
-            </div>
-        </div>
-        <?php endforeach; ?>
-        <?php endif; ?>
+        <?php include __DIR__ . '/_review_forms.php'; ?>
     </div>
 
     <div class="col-lg-4">
@@ -49,25 +78,17 @@
 
         <div class="table-container">
             <h6 class="fw-bold mb-3">Your Review</h6>
-            <form id="review2Form">
+            <form id="reviewForm">
                 <?= csrfField() ?>
                 <input type="hidden" name="lead_id" value="<?= $lead['id'] ?>">
-                
                 <div class="mb-3">
                     <label class="form-label small fw-semibold">Admin Approval 2 Remark</label>
-                    <textarea name="admin_approval2_remark" class="form-control form-control-sm" rows="3"></textarea>
+                    <textarea name="admin_approval2_remark" class="form-control form-control-sm" rows="3" placeholder="Enter your remarks..."></textarea>
                 </div>
-
                 <div class="d-grid gap-2">
-                    <button type="button" class="btn btn-success" onclick="processReview2('approve')">
-                        <i class="bi bi-check-lg me-1"></i> Approve (Login Approved)
-                    </button>
-                    <button type="button" class="btn btn-warning" onclick="processReview2('send_back')">
-                        <i class="bi bi-arrow-return-left me-1"></i> Send Back to Agent
-                    </button>
-                    <button type="button" class="btn btn-danger" onclick="processReview2('reject')">
-                        <i class="bi bi-x-lg me-1"></i> Reject
-                    </button>
+                    <button type="button" class="btn btn-success" onclick="processReview('approve')"><i class="bi bi-check-lg me-1"></i> Approve (Send to Post-Login)</button>
+                    <button type="button" class="btn btn-outline-warning" onclick="processReview('send_back')"><i class="bi bi-arrow-return-left me-1"></i> Send Back to Agent</button>
+                    <button type="button" class="btn btn-danger" onclick="processReview('reject')"><i class="bi bi-x-lg me-1"></i> Reject</button>
                 </div>
             </form>
         </div>
@@ -75,18 +96,17 @@
 </div>
 
 <script>
-async function processReview2(action) {
+async function processReview(action) {
     if (action === 'reject' && !confirm('Reject this lead?')) return;
-    const formData = new FormData(document.getElementById('review2Form'));
+    if (action === 'send_back' && !confirm('Send back to agent?')) return;
+    const form = document.getElementById('reviewForm');
+    const formData = new FormData(form);
     formData.append('action', action);
-
     try {
-        const response = await fetch('/bestdealcrm/admin/review2/process', {
-            method: 'POST', body: formData, headers: { 'X-Requested-With': 'XMLHttpRequest' }
-        });
+        const response = await fetch('<?= BASE_URL ?>/admin/review2/process', { method: 'POST', body: formData, headers: { 'X-Requested-With': 'XMLHttpRequest' } });
         const result = await response.json();
-        if (result.success) { alert(result.message); window.location.href = '/bestdealcrm/admin/review2'; }
-        else alert(result.error || 'Error occurred.');
+        if (result.success) { alert(result.message); window.location.href = '<?= BASE_URL ?>/admin/review2'; }
+        else { alert(result.error || 'Error.'); }
     } catch (err) { alert('Network error.'); }
 }
 </script>
