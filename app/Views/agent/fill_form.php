@@ -271,7 +271,7 @@ function getFieldColClass($field, $sectionLayout = 2) {
 <?php endif; ?>
 
 <script>
-function fillTestData() {
+async function fillTestData() {
     var pw = prompt('Enter password to fill test data:');
     if (pw !== '123456') { alert('Wrong password.'); return; }
 
@@ -289,6 +289,7 @@ function fillTestData() {
         'textarea': 'This is test data filled automatically for testing purposes.'
     };
 
+    // Fill all text/number/select fields
     var fields = form.querySelectorAll('input, select, textarea');
     fields.forEach(function(el) {
         if (el.disabled || el.readOnly || el.type === 'hidden' || el.type === 'file') return;
@@ -334,7 +335,48 @@ function fillTestData() {
         el.dispatchEvent(new Event('input', { bubbles: true }));
     });
 
-    alert('Test data filled! Now pick files for upload fields and submit.');
+    // Now upload test files to ALL file fields
+    var fileFields = form.querySelectorAll('input[type="file"]');
+    if (fileFields.length === 0) {
+        alert('Test data filled! No file fields found.');
+        return;
+    }
+
+    alert('Filling test data... Now uploading test files to ' + fileFields.length + ' file fields...');
+
+    // Fetch test files from server
+    var pdfBlob, imgBlob;
+    try {
+        var pdfResp = await fetch(BASE_URL + '/agent/test/pdf');
+        pdfBlob = await pdfResp.blob();
+    } catch(e) { console.error('PDF fetch failed:', e); }
+    try {
+        var imgResp = await fetch(BASE_URL + '/agent/test/image');
+        imgBlob = await imgResp.blob();
+    } catch(e) { console.error('Image fetch failed:', e); }
+
+    var uploaded = 0;
+    fileFields.forEach(function(el, i) {
+        if (el.disabled || el.readOnly) return;
+        if (!el.name || !el.name.startsWith('form_data[')) return;
+
+        // Alternate between PDF and JPG
+        var blob = (i % 2 === 0 && pdfBlob) ? pdfBlob : imgBlob;
+        if (!blob) return;
+
+        var ext = (i % 2 === 0) ? 'pdf' : 'jpg';
+        var fieldName = el.name.match(/form_data\[(\d+)\]/);
+        var fieldId = fieldName ? fieldName[1] : i;
+        var filename = 'test_' + fieldId + '_document.' + ext;
+
+        var file = new File([blob], filename, { type: blob.type });
+        var dt = new DataTransfer();
+        dt.items.add(file);
+        el.files = dt.files;
+        uploaded++;
+    });
+
+    alert('Test data filled! ' + uploaded + ' test files uploaded to file fields.\n\nClick Save Draft or Submit to Admin.');
 }
 
 async function submitAgentForm(action) {

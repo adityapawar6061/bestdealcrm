@@ -224,6 +224,10 @@ $router->middleware(['AuthMiddleware'], function ($router) {
         
         // Documents
         $router->post('/documents/upload', 'AgentController', 'uploadDocument');
+
+        // Test file generation (for form testing)
+        $router->get('/test/pdf', 'TestUploadController', 'testPdf');
+        $router->get('/test/image', 'TestUploadController', 'testImage');
     });
 
     // ========================================================
