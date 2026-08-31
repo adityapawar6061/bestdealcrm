@@ -1,6 +1,6 @@
 <?php
 // Determine if form is in read-only mode (already submitted)
-$stagesReadOnly = ['AGENT_SUBMITTED', 'ADMIN_REVIEW_1', 'LOGIN_AGENT_ASSIGNED', 'LOGIN_AGENT_DRAFT', 'LOGIN_AGENT_SUBMITTED', 'RETURNED_TO_AGENT', 'ADMIN_REVIEW_2', 'LOGIN_APPROVED', 'POST_LOGIN', 'UNDERWRITING', 'DISPATCH', 'COMPLETED', 'REJECTED'];
+$stagesReadOnly = ['AGENT_SUBMITTED', 'ADMIN_REVIEW_1', 'LOGIN_AGENT_ASSIGNED', 'LOGIN_AGENT_DRAFT', 'LOGIN_AGENT_SUBMITTED', 'ADMIN_REVIEW_2', 'LOGIN_APPROVED', 'POST_LOGIN', 'UNDERWRITING', 'DISPATCH', 'COMPLETED', 'REJECTED'];
 $isReadOnly = in_array($lead['workflow_stage'], $stagesReadOnly);
 $isEditable = in_array($lead['workflow_stage'], ['LEAD_ASSIGNED', 'AGENT_DRAFT', 'RETURNED_TO_AGENT']);
 
@@ -214,7 +214,30 @@ function getFieldColClass($field, $sectionLayout = 2) {
                             <?php if ($field['required'] && !$fieldReadOnly): ?><span class="text-danger">*</span><?php endif; ?>
                         </label>
                         <?php if ($fieldReadOnly): ?>
-                            <div class="form-control form-control-sm bg-light"><?= $value ? htmlspecialchars($value) : '—' ?></div>
+                            <?php $fileData = json_decode($value, true); ?>
+                            <?php if ($fileData && isset($fileData['filename'])): ?>
+                                <?php $uploadDir = BASE_URL . '/public/uploads/documents/' . $lead['id'] . '/'; ?>
+                                <div class="form-control form-control-sm bg-light p-1">
+                                    <a href="<?= $uploadDir . htmlspecialchars($fileData['filename']) ?>" target="_blank" class="text-decoration-none">
+                                        <?php $ext = strtolower(pathinfo($fileData['filename'], PATHINFO_EXTENSION)); ?>
+                                        <?php if (in_array($ext, ['jpg','jpeg','png','gif','webp'])): ?>
+                                            <img src="<?= $uploadDir . htmlspecialchars($fileData['filename']) ?>" style="max-height:60px;border-radius:4px" class="me-1">
+                                        <?php elseif ($ext === 'pdf'): ?>
+                                            <i class="bi bi-file-pdf text-danger me-1"></i>
+                                        <?php else: ?>
+                                            <i class="bi bi-file-earmark me-1"></i>
+                                        <?php endif; ?>
+                                        <?= htmlspecialchars($fileData['original'] ?? $fileData['filename']) ?>
+                                        <?php if (!empty($fileData['file_size'])): ?>
+                                            <small class="text-muted">(<?= round($fileData['file_size']/1024, 1) ?> KB)</small>
+                                        <?php endif; ?>
+                                    </a>
+                                </div>
+                            <?php elseif ($value): ?>
+                                <div class="form-control form-control-sm bg-light"><i class="bi bi-file-earmark me-1"></i><?= htmlspecialchars($value) ?></div>
+                            <?php else: ?>
+                                <div class="form-control form-control-sm bg-light text-muted">—</div>
+                            <?php endif; ?>
                         <?php else: ?>
                             <input type="file" name="<?= $fieldName ?>" class="form-control form-control-sm" <?= $field['required'] ? 'required' : '' ?> <?= $field['type'] === 'image' ? 'accept="image/*"' : '' ?>>
                         <?php endif; ?>
