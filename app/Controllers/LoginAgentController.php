@@ -473,6 +473,9 @@ class LoginAgentController extends BaseController
             return;
         }
 
+        // Process file uploads
+        $this->formModel->processFileUploads($leadId, $user['id'], $values);
+
         $existing = $this->db->fetchOne(
             "SELECT id FROM form_submissions WHERE lead_id = ? AND submitted_by = ? AND form_id = ? ORDER BY created_at DESC LIMIT 1",
             [$leadId, $user['id'], $formId]
@@ -512,6 +515,9 @@ class LoginAgentController extends BaseController
             return;
         }
 
+        // Process file uploads
+        $this->formModel->processFileUploads($leadId, $user['id'], $values);
+
         $existing = $this->db->fetchOne(
             "SELECT id FROM form_submissions WHERE lead_id = ? AND submitted_by = ? AND form_id = ? ORDER BY created_at DESC LIMIT 1",
             [$leadId, $user['id'], $formId]
@@ -526,11 +532,15 @@ class LoginAgentController extends BaseController
             $this->formModel->submitForm($formId, $leadId, $user['id'], $values);
         }
 
-        // Transition to POST_LOGIN
-        if ($lead['workflow_stage'] !== 'POST_LOGIN') {
+        // Transition to ADMIN_REVIEW_3 for admin review
+        if ($lead['workflow_stage'] !== 'ADMIN_REVIEW_3') {
             $workflowModel = new \Models\Workflow();
-            $workflowModel->transition($leadId, $lead['workflow_stage'], 'POST_LOGIN', $user['id'], 'login_agent', null, 'post_login_submitted');
+            $workflowModel->transition($leadId, $lead['workflow_stage'], 'ADMIN_REVIEW_3', $user['id'], 'login_agent', null, 'post_login_submitted');
         }
+        $this->db->update('leads', [
+            'workflow_stage' => 'ADMIN_REVIEW_3',
+            'updated_at'     => nowIST(),
+        ], 'id = ?', [$leadId]);
 
         $admins = $this->db->fetchAll("SELECT id FROM users WHERE role_id = (SELECT id FROM roles WHERE name = 'admin')");
         foreach ($admins as $admin) {

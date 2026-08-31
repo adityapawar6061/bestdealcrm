@@ -309,6 +309,72 @@ class DynamicForm
     }
 
     /**
+     * Process file uploads from form submissions
+     * Handles files uploaded via <input type="file" name="form_data[field_id]">
+     */
+    public function processFileUploads(int $leadId, int $uploadedBy, array $values): void
+    {
+        if (empty($_FILES['form_data'])) return;
+
+        $allowedExts = ['pdf', 'jpg', 'jpeg', 'png', 'doc', 'docx', 'xls', 'xlsx'];
+        $uploadDir = ROOT_PATH . '/public/uploads/documents/' . $leadId . '/';
+
+        // Create directory if needed
+        if (!is_dir($uploadDir)) {
+            mkdir($uploadDir, 0755, true);
+        }
+
+        $files = $_FILES['form_data'];
+        foreach ($files['error'] as $fieldId => $error) {
+            if ($error !== UPLOAD_ERR_OK || empty($files['name'][$fieldId])) continue;
+
+            $file = [
+                'name'     => $files['name'][$fieldId],
+                'type'     => $files['type'][$fieldId],
+                'tmp_name' => $files['tmp_name'][$fieldId],
+                'error'    => $files['error'][$fieldId],
+                'size'     => $files['size'][$fieldId],
+            ];
+
+            $ext = strtolower(pathinfo($file['name'], PATHINFO_EXTENSION));
+            if (!in_array($ext, $allowedExts)) continue;
+
+            $safeFilename = preg_replace('/[^a-zA-Z0-9._-]/', '_', pathinfo($file['name'], PATHINFO_FILENAME));
+            $safeFilename = $safeFilename . '_' . time() . '.' . $ext;
+            $destination = $uploadDir . $safeFilename;
+
+            if (move_uploaded_file($file['tmp_name'], $destination)) {
+                // Determine mime type
+                $mimeMap = ['pdf' => 'application/pdf', 'jpg' => 'image/jpeg', 'jpeg' => 'image/jpeg', 'png' => 'image/png', 'doc' => 'application/msword', 'docx' => 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'xls' => 'application/vnd.ms-excel', 'xlsx' => 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'];
+                $mimeType = $mimeMap[$ext] ?? 'application/octet-stream';
+
+                // Insert into documents table
+                $docId = $this->db->insert('documents', [
+                    'lead_id'        => $leadId,
+                    'uploaded_by'    => $uploadedBy,
+                    'filename'       => $safeFilename,
+                    'original_name'  => $file['name'],
+                    'mime_type'      => $mimeType,
+                    'file_size'      => $file['size'],
+                    'document_type'  => 'form_upload',
+                    'created_at'     => nowIST(),
+                ]);
+
+                // Store reference in submission values
+                $values[$fieldId] = json_encode([
+                    'doc_id'       => (int)$docId,
+                    'filename'     => $safeFilename,
+                    'original'     => $file['name'],
+                    'mime_type'    => $mimeType,
+                    'file_size'    => $file['size'],
+                ]);
+
+                logActivity($uploadedBy, 'form_file_uploaded', 'document', (int)$docId, null, $file['name']);
+            }
+        }
+    }
+
+    /**
      * Get forms by role
      */
     public function getFormsByRole(string $roleName): array

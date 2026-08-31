@@ -92,20 +92,42 @@ if (!function_exists('renderReadOnlyField')) {
             case 'file':
             case 'image':
                 if ($isEmpty) {
-                    $html .= '<div class="form-control form-control-sm bg-light text-muted">—</div>';
+                    $html .= '<div class="form-control form-control-sm bg-light text-muted">' . $dashHtml . '</div>';
                 } else {
-                    $uploadDir = BASE_URL . '/public/uploads/documents/' . ($field['_lead_id'] ?? '') . '/';
-                    $ext = strtolower(pathinfo($value, PATHINFO_EXTENSION));
-                    $html .= '<div class="form-control form-control-sm bg-light">';
-                    $html .= '<a href="' . $uploadDir . $val . '" target="_blank" class="text-decoration-none">';
-                    if (in_array($ext, ['jpg', 'jpeg', 'png', 'gif', 'webp'])) {
-                        $html .= '<img src="' . $uploadDir . $val . '" style="max-height:60px;border-radius:4px" class="me-1">';
-                    } elseif ($ext === 'pdf') {
-                        $html .= '<i class="bi bi-file-pdf text-danger me-1"></i>';
+                    $fileData = json_decode($value, true);
+                    if ($fileData && isset($fileData['filename'])) {
+                        $filename = $fileData['filename'];
+                        $original = $fileData['original'] ?? $filename;
+                        $uploadDir = BASE_URL . '/public/uploads/documents/' . ($field['_lead_id'] ?? '') . '/';
+                        $ext = strtolower(pathinfo($filename, PATHINFO_EXTENSION));
+                        $html .= '<div class="form-control form-control-sm bg-light">';
+                        $html .= '<a href="' . $uploadDir . $filename . '" target="_blank" class="text-decoration-none">';
+                        if (in_array($ext, ['jpg', 'jpeg', 'png', 'gif', 'webp'])) {
+                            $html .= '<img src="' . $uploadDir . $filename . '" style="max-height:60px;border-radius:4px" class="me-1">';
+                        } elseif ($ext === 'pdf') {
+                            $html .= '<i class="bi bi-file-pdf text-danger me-1"></i>';
+                        } else {
+                            $html .= '<i class="bi bi-file-earmark me-1"></i>';
+                        }
+                        $html .= htmlspecialchars($original) . '</a>';
+                        if (!empty($fileData['file_size'])) {
+                            $html .= '<small class="text-muted ms-1">(' . round($fileData['file_size'] / 1024, 1) . ' KB)</small>';
+                        }
+                        $html .= '</div>';
                     } else {
-                        $html .= '<i class="bi bi-file-earmark me-1"></i>';
+                        $uploadDir = BASE_URL . '/public/uploads/documents/' . ($field['_lead_id'] ?? '') . '/';
+                        $ext = strtolower(pathinfo($value, PATHINFO_EXTENSION));
+                        $html .= '<div class="form-control form-control-sm bg-light">';
+                        $html .= '<a href="' . $uploadDir . $val . '" target="_blank" class="text-decoration-none">';
+                        if (in_array($ext, ['jpg', 'jpeg', 'png', 'gif', 'webp'])) {
+                            $html .= '<img src="' . $uploadDir . $val . '" style="max-height:60px;border-radius:4px" class="me-1">';
+                        } elseif ($ext === 'pdf') {
+                            $html .= '<i class="bi bi-file-pdf text-danger me-1"></i>';
+                        } else {
+                            $html .= '<i class="bi bi-file-earmark me-1"></i>';
+                        }
+                        $html .= htmlspecialchars($value) . '</a></div>';
                     }
-                    $html .= htmlspecialchars($value) . '</a></div>';
                 }
                 return $html;
 

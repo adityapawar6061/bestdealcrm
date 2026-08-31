@@ -290,6 +290,9 @@ class AgentController extends BaseController
             return;
         }
 
+        // Process file uploads
+        $this->formModel->processFileUploads($leadId, $user['id'], $values);
+
         $existing = $this->db->fetchOne(
             "SELECT id FROM form_submissions WHERE lead_id = ? AND submitted_by = ? AND status = 'draft'",
             [$leadId, $user['id']]
@@ -330,6 +333,9 @@ class AgentController extends BaseController
             $this->json(['error' => 'Unauthorized.'], 403);
             return;
         }
+
+        // Process file uploads
+        $this->formModel->processFileUploads($leadId, $user['id'], $values);
 
         $existing = $this->db->fetchOne(
             "SELECT id FROM form_submissions WHERE lead_id = ? AND submitted_by = ? AND status IN ('draft', 'submitted')",

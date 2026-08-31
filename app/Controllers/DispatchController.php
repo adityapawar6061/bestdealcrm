@@ -245,9 +245,7 @@ class DispatchController extends BaseController
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
             $this->json(['error' => 'Invalid request.'], 405);
             return;
-        }
-
-        $leadId = (int)($_POST['lead_id'] ?? 0);
+        }        $leadId = (int)($_POST['lead_id'] ?? 0);
         $values = $_POST['form_data'] ?? [];
         $user = currentUser();
         $formModel = new \Models\DynamicForm();
@@ -257,6 +255,10 @@ class DispatchController extends BaseController
             $this->json(['error' => 'Unauthorized.'], 403);
             return;
         }
+
+        // Process file uploads
+        $formModel->processFileUploads($leadId, $user['id'], $values);
+
 
         $dispatchForms = $formModel->getFormsByStage('DISPATCH');
         if (empty($dispatchForms)) {
@@ -302,6 +304,9 @@ class DispatchController extends BaseController
             $this->json(['error' => 'Unauthorized.'], 403);
             return;
         }
+
+        // Process file uploads
+        $formModel->processFileUploads($leadId, $user['id'], $values);
 
         $dispatchForms = $formModel->getFormsByStage('DISPATCH');
         if (empty($dispatchForms)) {

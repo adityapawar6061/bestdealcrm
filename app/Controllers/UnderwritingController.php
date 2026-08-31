@@ -289,6 +289,9 @@ class UnderwritingController extends BaseController
             return;
         }
 
+        // Process file uploads
+        $formModel->processFileUploads($leadId, $user['id'], $values);
+
         // Get or create submission
         $uwForms = $formModel->getFormsByStage('UNDERWRITING');
         if (empty($uwForms)) {
@@ -334,6 +337,9 @@ class UnderwritingController extends BaseController
             $this->json(['error' => 'Unauthorized.'], 403);
             return;
         }
+
+        // Process file uploads
+        $formModel->processFileUploads($leadId, $user['id'], $values);
 
         $uwForms = $formModel->getFormsByStage('UNDERWRITING');
         if (empty($uwForms)) {
