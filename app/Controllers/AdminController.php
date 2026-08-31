@@ -755,16 +755,59 @@ class AdminController extends BaseController
     public function review1Detail(int $id): void
     {
         $lead = $this->leadModel->findById($id);
-        $submissions = $this->formModel->getSubmissionsForLead($id);
         $timeline = $this->leadModel->getTimeline($id);
         $loginAgents = $this->userModel->getLoginAgents();
 
+        // Get agent form with full structure
+        $getFormWithValues = function($leadId, $roleName = null, $workflowStage = null) {
+            $formId = null;
+            if ($workflowStage) {
+                $forms = $this->formModel->getFormsByStage($workflowStage);
+                if (!empty($forms)) $formId = $forms[0]['id'];
+            }
+            $where = 'fs.lead_id = ? AND fs.status = \'submitted\'';
+            $params = [$leadId];
+            if ($roleName) { $where .= ' AND r.name = ?'; $params[] = $roleName; }
+            if ($formId) { $where .= ' AND fs.form_id = ?'; $params[] = $formId; }
+            $submission = $this->db->fetchOne(
+                "SELECT fs.*, u.name as submitted_by_name, r.name as role_name
+                 FROM form_submissions fs
+                 JOIN users u ON fs.submitted_by = u.id
+                 JOIN roles r ON u.role_id = r.id
+                 WHERE {$where}
+                 ORDER BY fs.created_at DESC LIMIT 1",
+                $params
+            );
+            if (!$submission) return [null, [], null, null];
+            $form = $this->formModel->getFullForm($submission['form_id']);
+            $vals = $this->db->fetchAll("SELECT * FROM form_submission_values WHERE submission_id = ?", [$submission['id']]);
+            $values = [];
+            foreach ($vals as $v) $values[$v['field_id']] = $v['value'];
+            return [$form, $values, $submission['submitted_by_name'], $submission['role_name']];
+        };
+
+        [$agentForm, $agentFormValues, $agentName, $agentRole] = $getFormWithValues($id, 'agent');
+
+        // Documents
+        $documents = $this->db->fetchAll(
+            "SELECT d.*, u.name as uploaded_by_name FROM documents d
+             LEFT JOIN users u ON d.uploaded_by = u.id
+             WHERE d.lead_id = ? ORDER BY d.created_at DESC", [$id]
+        );
+
+        // All submissions for history
+        $allSubmissions = $this->formModel->getSubmissionsForLead($id);
+
         $this->view('admin/review1_detail', [
-            'title'       => 'Review Lead #' . $id,
-            'lead'        => $lead,
-            'submissions' => $submissions,
-            'timeline'    => $timeline,
-            'loginAgents' => $loginAgents,
+            'title'            => 'Review Lead #' . $id,
+            'lead'             => $lead,
+            'timeline'         => $timeline,
+            'loginAgents'      => $loginAgents,
+            'agentForm'        => $agentForm,
+            'agentFormValues'  => $agentFormValues,
+            'agentName'        => $agentName ?? '',
+            'documents'        => $documents,
+            'allSubmissions'   => $allSubmissions,
         ]);
     }
 
