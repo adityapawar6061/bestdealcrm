@@ -369,7 +369,15 @@ async function submitAgentForm(action) {
             body: formData,
             headers: { 'X-Requested-With': 'XMLHttpRequest' }
         });
-        const result = await response.json();
+        const text = await response.text();
+        let result;
+        try {
+            result = JSON.parse(text);
+        } catch(parseErr) {
+            console.error('Server returned non-JSON:', text.substring(0, 500));
+            showToast('Server error. Check console. Response: ' + text.substring(0, 200), 'danger');
+            return;
+        }
 
         if (result.success) {
             showToast(result.message, 'success');
@@ -378,7 +386,8 @@ async function submitAgentForm(action) {
             showToast(result.error || 'An error occurred.', 'danger');
         }
     } catch (err) {
-        showToast('Network error. Please try again.', 'danger');
+        console.error('Fetch error:', err);
+        showToast('Network error: ' + err.message, 'danger');
     }
 }
 </script>
