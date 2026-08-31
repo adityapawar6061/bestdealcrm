@@ -241,8 +241,60 @@ function getFieldColClass($field, $sectionLayout = 2) {
     </div>
     <?php endforeach; ?>
 
-    <!-- Actions - only show when editable -->
+    <!-- Upload Documents Section -->
     <?php if ($isEditable): ?>
+    <div class="table-container mb-4">
+        <h6 class="fw-bold mb-3"><i class="bi bi-paperclip me-1"></i> Upload Documents</h6>
+        <div id="uploadStatus"></div>
+        <div class="row g-2 align-items-end">
+            <div class="col-md-4">
+                <select id="docType" class="form-select form-select-sm">
+                    <option value="general">General Document</option>
+                    <option value="pan_card">PAN Card</option>
+                    <option value="aadhar_card">Aadhar Card</option>
+                    <option value="salary_slip">Salary Slip</option>
+                    <option value="bank_statement">Bank Statement</option>
+                    <option value="form_16">Form 16</option>
+                    <option value="customer_photo">Customer Photo</option>
+                </select>
+            </div>
+            <div class="col-md-5">
+                <input type="file" id="docFile" class="form-control form-control-sm" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx,.xls,.xlsx">
+            </div>
+            <div class="col-md-3">
+                <button type="button" class="btn btn-success btn-sm w-100" onclick="uploadDocument()">
+                    <i class="bi bi-upload me-1"></i> Upload
+                </button>
+            </div>
+        </div>
+        <div id="uploadedDocs" class="mt-3">
+            <?php if (!empty($documents)): ?>
+            <div class="row g-2">
+                <?php foreach ($documents as $doc): ?>
+                <div class="col-md-4 col-sm-6">
+                    <div class="d-flex align-items-center gap-2 p-2 bg-light rounded small">
+                        <?php if (str_starts_with($doc['mime_type'] ?? '', 'image/')): ?>
+                            <i class="bi bi-image text-primary"></i>
+                        <?php elseif (($doc['mime_type'] ?? '') === 'application/pdf'): ?>
+                            <i class="bi bi-file-pdf text-danger"></i>
+                        <?php else: ?>
+                            <i class="bi bi-file-earmark text-secondary"></i>
+                        <?php endif; ?>
+                        <div class="flex-grow-1 text-truncate">
+                            <a href="<?= BASE_URL ?>/public/uploads/documents/<?= $lead['id'] ?>/<?= htmlspecialchars($doc['filename']) ?>" target="_blank" class="text-decoration-none">
+                                <?= htmlspecialchars($doc['original_name']) ?>
+                            </a>
+                            <div class="text-muted" style="font-size:0.65rem">Uploaded by <?= htmlspecialchars($doc['uploaded_by_name'] ?? '') ?></div>
+                        </div>
+                    </div>
+                </div>
+                <?php endforeach; ?>
+            </div>
+            <?php endif; ?>
+        </div>
+    </div>
+
+    <!-- Actions -->
     <div class="d-flex justify-content-end gap-2 mb-4">
         <button type="button" class="btn btn-outline-warning" onclick="submitAgentForm('draft')">
             <i class="bi bi-save me-1"></i> Save as Draft
@@ -261,6 +313,40 @@ function getFieldColClass($field, $sectionLayout = 2) {
 <?php endif; ?>
 
 <script>
+async function uploadDocument() {
+    var file = document.getElementById('docFile').files[0];
+    var docType = document.getElementById('docType').value;
+    if (!file) { alert('Select a file first.'); return; }
+    var status = document.getElementById('uploadStatus');
+    status.innerHTML = '<div class="alert alert-info py-2 mb-2"><i class="bi bi-hourglass-split me-1"></i> Uploading...</div>';
+    var fd = new FormData();
+    fd.append('lead_id', '<?= $lead["id"] ?>');
+    fd.append('document', file);
+    fd.append('document_type', docType);
+    fd.append('_csrf_token', CSRF_TOKEN);
+    try {
+        var r = await fetch(BASE_URL + '/agent/documents/upload', {
+            method: 'POST', body: fd,
+            headers: { 'X-Requested-With': 'XMLHttpRequest' }
+        });
+        var result = await r.json();
+        if (result.success) {
+            status.innerHTML = '<div class="alert alert-success py-2 mb-2"><i class="bi bi-check-circle me-1"></i> ' + result.message + '</div>';
+            document.getElementById('docFile').value = '';
+            // Add to list
+            var container = document.getElementById('uploadedDocs');
+            var html = '<div class="col-md-4 col-sm-6"><div class="d-flex align-items-center gap-2 p-2 bg-light rounded small">';
+            html += '<i class="bi bi-file-earmark text-primary"></i>';
+            html += '<div class="flex-grow-1 text-truncate">Uploaded: ' + file.name + '</div></div></div>';
+            container.innerHTML = '<div class="row g-2">' + html + '</div>' + container.innerHTML;
+        } else {
+            status.innerHTML = '<div class="alert alert-danger py-2 mb-2">' + (result.error || 'Upload failed') + '</div>';
+        }
+    } catch(e) {
+        status.innerHTML = '<div class="alert alert-danger py-2 mb-2">Network error: ' + e.message + '</div>';
+    }
+}
+
 async function submitAgentForm(action) {
     const form = document.getElementById('agentForm');
     if (!form) return;

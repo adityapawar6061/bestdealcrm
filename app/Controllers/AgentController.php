@@ -262,12 +262,21 @@ class AgentController extends BaseController
             }
         }
 
+        // Get existing documents for this lead
+        $documents = $this->db->fetchAll(
+            "SELECT d.*, u.name as uploaded_by_name FROM documents d
+             LEFT JOIN users u ON d.uploaded_by = u.id
+             WHERE d.lead_id = ? ORDER BY d.created_at DESC",
+            [$leadId]
+        );
+
         $this->view('agent/fill_form', [
             'title'          => 'Fill Lead Form',
             'lead'           => $lead,
             'form'           => $form,
             'existingValues' => $existingValues,
             'submission'     => $existingSubmission,
+            'documents'      => $documents,
         ]);
     }
 

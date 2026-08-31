@@ -312,19 +312,27 @@ class DynamicForm
      * Process file uploads from form submissions
      * Handles files uploaded via <input type="file" name="form_data[field_id]">
      */
-    public function processFileUploads(int $leadId, int $uploadedBy, array $values): void
+    public function processFileUploads(int $leadId, int $uploadedBy, array &$values): void
     {
-        if (empty($_FILES['form_data'])) return;
+        if (empty($_FILES['form_data'])) {
+            error_log("processFileUploads: no form_data in FILES");
+            return;
+        }
 
         $allowedExts = ['pdf', 'jpg', 'jpeg', 'png', 'doc', 'docx', 'xls', 'xlsx'];
         $uploadDir = ROOT_PATH . '/public/uploads/documents/' . $leadId . '/';
 
         // Create directory if needed
         if (!is_dir($uploadDir)) {
-            mkdir($uploadDir, 0755, true);
+            $created = @mkdir($uploadDir, 0755, true);
+            if (!$created) {
+                error_log("processFileUploads: failed to create dir {$uploadDir} — check permissions");
+                return;
+            }
         }
 
         $files = $_FILES['form_data'];
+        $processed = 0;
         foreach ($files['error'] as $fieldId => $error) {
             if ($error !== UPLOAD_ERR_OK || empty($files['name'][$fieldId])) continue;
 
@@ -370,7 +378,13 @@ class DynamicForm
                 ]);
 
                 logActivity($uploadedBy, 'form_file_uploaded', 'document', (int)$docId, null, $file['name']);
+                $processed++;
+            } else {
+                error_log("processFileUploads: move_uploaded_file failed for {$file['name']} -> {$destination}");
             }
+        }
+        if ($processed > 0) {
+            error_log("processFileUploads: processed {$processed} files for lead #{$leadId}");
         }
     }
 
