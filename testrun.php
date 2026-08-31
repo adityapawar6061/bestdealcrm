@@ -147,7 +147,7 @@ foreach (['agent', 'login_agent', 'underwriting', 'dispatch', 'admin'] as $roleN
         $userId = dbInsert('users', [
             'username'  => "test_{$roleName}",
             'email'     => "test_{$roleName}@bestdealcrm.com",
-            'password'  => password_hash('test1234', PASSWORD_DEFAULT),
+            'password_hash' => password_hash('test1234', PASSWORD_DEFAULT),
             'name'      => "Test " . ucwords(str_replace('_', ' ', $roleName)),
             'role_id'   => $roleId,
             'status'    => 'active',
