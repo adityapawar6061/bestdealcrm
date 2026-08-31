@@ -118,11 +118,19 @@ function assertEquals($expected, $actual, string $msg = '') {
 
 // ===== Get form IDs =====
 $istNow = nowIST();
-$agentFormId = (int)(dbFetch("SELECT id FROM forms WHERE workflow_stage = 'Agent Draft' AND status = 'active' LIMIT 1")['id'] ?? 0);
-$preLoginFormId = (int)(dbFetch("SELECT id FROM forms WHERE workflow_stage = 'Login Agent Draft' AND status = 'active' LIMIT 1")['id'] ?? 0);
-$postLoginFormId = (int)(dbFetch("SELECT id FROM forms WHERE workflow_stage = 'Post Login' AND status = 'active' LIMIT 1")['id'] ?? 0);
-$uwFormId = (int)(dbFetch("SELECT id FROM forms WHERE workflow_stage = 'Underwriting' AND status = 'active' LIMIT 1")['id'] ?? 0);
-$dispatchFormId = (int)(dbFetch("SELECT id FROM forms WHERE workflow_stage = 'Dispatch' AND status = 'active' LIMIT 1")['id'] ?? 0);
+// Fetch form IDs — try both cases since DB may store either
+function findFormByStage($pdo, array $stages): int {
+    foreach ($stages as $stage) {
+        $r = dbFetch("SELECT id FROM forms WHERE workflow_stage = ? AND status = 'active' LIMIT 1", [$stage]);
+        if ($r) return (int)$r['id'];
+    }
+    return 0;
+}
+$agentFormId = findFormByStage($pdo, ['Agent Draft', 'AGENT_DRAFT', 'agent_draft']);
+$preLoginFormId = findFormByStage($pdo, ['Login Agent Draft', 'LOGIN_AGENT_DRAFT', 'login_agent_draft']);
+$postLoginFormId = findFormByStage($pdo, ['Post Login', 'POST_LOGIN', 'post_login']);
+$uwFormId = findFormByStage($pdo, ['Underwriting', 'UNDERWRITING', 'underwriting']);
+$dispatchFormId = findFormByStage($pdo, ['Dispatch', 'DISPATCH', 'dispatch']);
 
 function getFormFields($pdo, int $formId): array {
     if (!$formId) return [];
